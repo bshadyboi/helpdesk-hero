@@ -87,6 +87,16 @@ export const LESSONS: Record<string, string> = {
     "Urgency + secrecy + a new bank account is CEO-fraud — verify out-of-band on a known number before any money moves.",
   "email-outage":
     "Declare a major incident, communicate a status/ETA relentlessly, and follow up with a post-incident review and monitoring.",
+
+  // ----- On-call -----
+  "backup-fail-3am":
+    "On-call backup failures: read the error class first — expired service-account certs cause most auth failures; fix creds, verify, document.",
+  "exec-lockout-late":
+    "After-hours VIP lockouts still require verification; use callback numbers and time-limited MFA bypass — never disable MFA.",
+  "ransomware-page":
+    "Ransomware on-call: isolate the host first, preserve evidence, rotate compromised credentials — never reboot or allow shadow IT workarounds.",
+  "dc-ups-alarm":
+    "Datacenter power events need immediate escalation and tiered graceful shutdown — controlled beats a hard crash every time.",
 };
 
 export const lessonFor = (scenarioId: string): string | undefined => LESSONS[scenarioId];

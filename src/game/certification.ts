@@ -4,10 +4,9 @@ import { RANKS } from "./ranks";
 /** XP rank level unlocked by each passed exam (cumulative). */
 export function certifiedMaxLevel(passedExamLevels: number[]): number {
   let max = 1;
-  if (passedExamLevels.includes(1)) max = Math.max(max, 2);
-  if (passedExamLevels.includes(2)) max = Math.max(max, 3);
-  if (passedExamLevels.includes(3)) max = Math.max(max, 4);
-  if (passedExamLevels.includes(4)) max = Math.max(max, 5);
+  for (let exam = 1; exam <= 7; exam++) {
+    if (passedExamLevels.includes(exam)) max = Math.max(max, exam + 1);
+  }
   return max;
 }
 
@@ -20,8 +19,9 @@ export function effectiveLevel(xpLevel: number, passedExamLevels: number[]): num
 export function nextRequiredExam(xpLevel: number, passedExamLevels: number[]): number | null {
   const cap = certifiedMaxLevel(passedExamLevels);
   if (xpLevel <= cap) return null;
-  const needed = cap + 1;
-  if (needed > 4) return null;
+  // Exam N unlocks ticket level N+1; when capped at `cap`, pass exam `cap`.
+  const needed = cap;
+  if (needed > 7) return null;
   return passedExamLevels.includes(needed) ? null : needed;
 }
 

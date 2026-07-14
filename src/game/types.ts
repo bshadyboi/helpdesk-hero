@@ -132,4 +132,6 @@ export interface Progress {
   docsCorrect: number;
   /** whether the first-time floor tutorial has been shown */
   tutorialSeen: boolean;
+  /** per-persona voice overrides keyed by persona name */
+  personaVoices: Record<string, string>;
 }

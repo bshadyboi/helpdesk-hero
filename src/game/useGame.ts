@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { Progress, TicketResult } from "./types";
 import { BADGES, rankForXp } from "./ranks";
 import { effectiveLevel as calcEffectiveLevel } from "./certification";
+import { exportProgressData, importProgressData } from "./persistence";
 import { scenarioById } from "./scenarios";
+import { setVoiceOverrides } from "../lib/speech";
 
 const STORAGE_KEY = "helpdesk-hero:v1";
 const HISTORY_CAP = 50;
@@ -24,6 +26,7 @@ const defaultProgress: Progress = {
   passedExamLevels: [],
   docsCorrect: 0,
   tutorialSeen: false,
+  personaVoices: {},
 };
 
 function load(): Progress {
@@ -54,6 +57,9 @@ export interface UseGame {
   recordDocumentation: (classificationCorrect: boolean, noteCorrect: boolean) => boolean;
   passExam: (level: number) => { alreadyPassed: boolean; xpAwarded: number };
   markTutorialSeen: () => void;
+  setPersonaVoices: (voices: Record<string, string>) => void;
+  exportSave: () => string;
+  importSave: (json: string) => boolean;
   resetProgress: () => void;
 }
 
@@ -63,6 +69,7 @@ export function useGame(): UseGame {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    setVoiceOverrides(progress.personaVoices ?? {});
   }, [progress]);
 
   const xpLevel = rankForXp(progress.xp).level;
@@ -203,6 +210,20 @@ export function useGame(): UseGame {
     setProgress((p) => (p.tutorialSeen ? p : { ...p, tutorialSeen: true }));
   }, []);
 
+  const setPersonaVoices = useCallback((voices: Record<string, string>) => {
+    setProgress((p) => ({ ...p, personaVoices: voices }));
+  }, []);
+
+  const exportSave = useCallback(() => exportProgressData(progress), [progress]);
+
+  const importSave = useCallback((json: string) => {
+    const imported = importProgressData(json);
+    if (!imported) return false;
+    setProgress({ ...defaultProgress, ...imported, personaVoices: imported.personaVoices ?? {} });
+    setNewlyUnlocked([]);
+    return true;
+  }, []);
+
   // Allow tier/category-specific badges to be unlocked from the UI layer.
   const resetProgress = useCallback(() => {
     setProgress({ ...defaultProgress });
@@ -224,6 +245,9 @@ export function useGame(): UseGame {
     recordDocumentation,
     passExam,
     markTutorialSeen,
+    setPersonaVoices,
+    exportSave,
+    importSave,
     resetProgress,
   };
 }

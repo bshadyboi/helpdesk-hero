@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard";
 import PracticeLibrary from "./components/PracticeLibrary";
 import StartScreen from "./components/StartScreen";
 import StudyScreen from "./components/StudyScreen";
+import VoiceSettings from "./components/VoiceSettings";
 import Workspace from "./components/Workspace";
 import { useGame } from "./game/useGame";
 import { clearSavedShift } from "./game/useShift";
@@ -19,6 +20,7 @@ export default function App() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showStudy, setShowStudy] = useState(false);
   const [showPracticeLib, setShowPracticeLib] = useState(false);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   const enterWork = (opts: { practiceId?: string | null; fresh?: boolean; shiftType?: ShiftType }) => {
     if (opts.practiceId) {
@@ -60,6 +62,24 @@ export default function App() {
               setScreen("start");
             }
           }}
+          onExportSave={() => {
+            const blob = new Blob([game.exportSave()], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `helpdesk-hero-save-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          onImportSave={(json) => {
+            if (!game.importSave(json)) {
+              alert("Couldn't read that save file. Make sure it's a Helpdesk Hero export.");
+              return false;
+            }
+            clearSavedShift();
+            return true;
+          }}
+          onOpenVoiceSettings={() => setShowVoiceSettings(true)}
         />
       ) : (
         <Workspace
@@ -87,11 +107,21 @@ export default function App() {
             setScreen("start");
             setShowPracticeLib(true);
           }}
+          onOpenVoiceSettings={() => setShowVoiceSettings(true)}
         />
       )}
 
       {showTrophy && <Achievements progress={game.progress} onClose={() => setShowTrophy(false)} />}
-      {showDashboard && <Dashboard progress={game.progress} onClose={() => setShowDashboard(false)} />}
+      {showDashboard && (
+        <Dashboard
+          progress={game.progress}
+          onClose={() => setShowDashboard(false)}
+          onReplayMistake={(id) => {
+            game.setAgentName(game.progress.agentName || "Agent");
+            enterWork({ practiceId: id });
+          }}
+        />
+      )}
       {showStudy && (
         <StudyScreen
           progress={game.progress}
@@ -108,6 +138,13 @@ export default function App() {
             enterWork({ practiceId: id });
           }}
           onClose={() => setShowPracticeLib(false)}
+        />
+      )}
+      {showVoiceSettings && (
+        <VoiceSettings
+          personaVoices={game.progress.personaVoices ?? {}}
+          onChange={game.setPersonaVoices}
+          onClose={() => setShowVoiceSettings(false)}
         />
       )}
     </div>

@@ -14,6 +14,9 @@ interface Props {
   onOpenTrophy: () => void;
   onOpenDashboard: () => void;
   onOpenStudy: () => void;
+  onExportSave: () => void;
+  onImportSave: (json: string) => boolean;
+  onOpenVoiceSettings: () => void;
 }
 
 export default function StartScreen({
@@ -25,6 +28,9 @@ export default function StartScreen({
   onOpenTrophy,
   onOpenDashboard,
   onOpenStudy,
+  onExportSave,
+  onImportSave,
+  onOpenVoiceSettings,
 }: Props) {
   const [name, setName] = useState(progress.agentName || "");
   const [shiftType, setShiftType] = useState<ShiftType>("day");
@@ -170,13 +176,41 @@ export default function StartScreen({
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
           <span>Tip: turn your volume up — clients talk. 🔊</span>
-          {returning && (
-            <button onClick={onReset} className="underline decoration-dotted hover:text-slate-300">
-              Reset all progress
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {returning && (
+              <>
+                <button onClick={onExportSave} className="underline decoration-dotted hover:text-slate-300">
+                  Export save
+                </button>
+                <label className="cursor-pointer underline decoration-dotted hover:text-slate-300">
+                  Import save
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") onImportSave(reader.result);
+                      };
+                      reader.readAsText(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <button onClick={onOpenVoiceSettings} className="underline decoration-dotted hover:text-slate-300">
+                  Client voices
+                </button>
+                <button onClick={onReset} className="underline decoration-dotted hover:text-rose-300/80">
+                  Reset all progress
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <RankLadder currentLevel={rank.level} />

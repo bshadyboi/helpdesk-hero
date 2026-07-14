@@ -22,14 +22,17 @@ export function weakCategories(
 }
 
 function nightPool(pool: Scenario[]): Scenario[] {
+  const onCall = pool.filter((s) => s.tags.includes("on-call"));
   const biased = pool.filter(
     (s) =>
+      s.tags.includes("on-call") ||
       s.category === "Security" ||
       s.difficulty >= 4 ||
       s.tier === "Priority" ||
       s.tier === "VIP" ||
       s.tier === "Executive"
   );
+  if (onCall.length) return onCall;
   return biased.length ? biased : pool;
 }
 

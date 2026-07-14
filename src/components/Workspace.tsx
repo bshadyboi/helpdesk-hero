@@ -26,6 +26,7 @@ interface Props {
   onOpenDashboard: () => void;
   onOpenStudy: () => void;
   onOpenPractice: () => void;
+  onOpenVoiceSettings: () => void;
 }
 
 interface Outcome {
@@ -45,6 +46,7 @@ export default function Workspace({
   onOpenDashboard,
   onOpenStudy,
   onOpenPractice,
+  onOpenVoiceSettings,
 }: Props) {
   const {
     progress,
@@ -263,7 +265,7 @@ export default function Workspace({
   const showModal = active?.phase === "resolved" && active.lastResult && outcome;
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className={`flex min-h-full flex-col ${state.shiftType === "night" && !isPractice ? "night-shift" : ""}`}>
       {!isPractice && (
         <CertGateBanner
           xpLevel={xpLevel}
@@ -286,6 +288,7 @@ export default function Workspace({
         onOpenDashboard={onOpenDashboard}
         onOpenStudy={onOpenStudy}
         onOpenPractice={onOpenPractice}
+        onOpenVoiceSettings={onOpenVoiceSettings}
         practiceMode={isPractice}
       />
 

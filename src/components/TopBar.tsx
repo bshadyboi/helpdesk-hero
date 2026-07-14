@@ -17,6 +17,7 @@ interface Props {
   onOpenDashboard: () => void;
   onOpenStudy: () => void;
   onOpenPractice: () => void;
+  onOpenVoiceSettings: () => void;
 }
 
 export default function TopBar({
@@ -32,6 +33,7 @@ export default function TopBar({
   onOpenDashboard,
   onOpenStudy,
   onOpenPractice,
+  onOpenVoiceSettings,
 }: Props) {
   const rank = rankForXp(progress.xp);
   const next = nextRank(progress.xp);
@@ -90,8 +92,15 @@ export default function TopBar({
             onClick={onToggleVoice}
             onIcon="🎙️"
             offIcon="🔇"
-            title="Client voices"
+            title="Client voices on/off"
           />
+          <button
+            onClick={onOpenVoiceSettings}
+            title="Pick a voice per client"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-white/5 bg-white/5 text-base transition hover:bg-white/10"
+          >
+            🗣️
+          </button>
           <IconToggle
             on={progress.soundOn}
             onClick={onToggleSound}

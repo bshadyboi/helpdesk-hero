@@ -81,6 +81,25 @@ body {
   background-size: 40px 40px;
 }
 
+/* Night shift — cooler, dimmer floor */
+.night-shift {
+  background:
+    radial-gradient(900px 500px at 10% -5%, rgba(99, 102, 241, 0.1), transparent 55%),
+    radial-gradient(800px 600px at 100% 20%, rgba(59, 130, 246, 0.08), transparent 50%),
+    #04060f;
+}
+.night-shift .panel {
+  @apply border-indigo-400/10 bg-ink-850/80;
+}
+.night-shift .glass {
+  @apply border-indigo-400/10 bg-ink-850/75;
+}
+.night-shift .grid-bg {
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
+}
+
 @keyframes confetti-fall {
   0% {
     transform: translateY(-12vh) rotate(0deg);

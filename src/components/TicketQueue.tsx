@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import type { QueueItem } from "../game/useShift";
 import { formatClock } from "../game/useShift";
+import { formatWait, queueAgingInfo } from "../game/queueAging";
 import { categoryIcon, DifficultyDots, TierBadge } from "./ui";
 
 interface Props {
@@ -9,7 +11,29 @@ interface Props {
   onOpen: (instanceId: string) => void;
 }
 
+const AGING_STYLES = [
+  "",
+  "border-amber-400/25",
+  "border-orange-400/35",
+  "border-rose-400/45 animate-pulse-ring",
+] as const;
+
+const AGING_BADGE = [
+  "",
+  "text-amber-300",
+  "text-orange-300",
+  "text-rose-300",
+] as const;
+
 export default function TicketQueue({ queue, activeInstanceId, canOpen, onOpen }: Props) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!queue.length) return;
+    const t = setInterval(() => setTick((n) => n + 1), 5000);
+    return () => clearInterval(t);
+  }, [queue.length]);
+
   return (
     <aside className="panel flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
@@ -36,6 +60,7 @@ export default function TicketQueue({ queue, activeInstanceId, canOpen, onOpen }
           const s = item.scenario;
           const isActive = item.instanceId === activeInstanceId;
           const isNew = i === queue.length - 1;
+          const aging = queueAgingInfo(item.arrivedAtReal);
           return (
             <button
               key={item.instanceId}
@@ -44,7 +69,7 @@ export default function TicketQueue({ queue, activeInstanceId, canOpen, onOpen }
               className={`group w-full animate-slide-in rounded-xl border p-3 text-left transition ${
                 isActive
                   ? "border-brand-400/50 bg-brand-500/10"
-                  : "border-white/5 bg-ink-900/60 hover:border-brand-400/30 hover:bg-ink-800/70"
+                  : `border-white/5 bg-ink-900/60 hover:border-brand-400/30 hover:bg-ink-800/70 ${AGING_STYLES[aging.level]}`
               } ${!canOpen && !isActive ? "opacity-50" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
@@ -68,7 +93,17 @@ export default function TicketQueue({ queue, activeInstanceId, canOpen, onOpen }
                   <DifficultyDots level={s.difficulty} />
                   <span>SLA {Math.round(s.slaSeconds / 60)}m</span>
                 </span>
-                <span>{isNew ? "just now" : `@ ${formatClock(item.arrivedClock)}`}</span>
+                <span>
+                  {aging.level > 0 ? (
+                    <span className={`font-semibold ${AGING_BADGE[aging.level]}`}>
+                      {aging.label} · {formatWait(aging.waitSeconds)}
+                    </span>
+                  ) : isNew ? (
+                    "just now"
+                  ) : (
+                    `@ ${formatClock(item.arrivedClock)}`
+                  )}
+                </span>
               </div>
             </button>
           );
@@ -76,7 +111,7 @@ export default function TicketQueue({ queue, activeInstanceId, canOpen, onOpen }
       </div>
 
       <div className="border-t border-white/5 px-4 py-2 text-center text-[11px] text-slate-500">
-        Click a ticket to start helping. One at a time!
+        Tickets age in the queue — pick VIPs and long-waiters first.
       </div>
     </aside>
   );

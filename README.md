@@ -12,20 +12,22 @@ site you can deploy anywhere.
 
 ## ✨ Features
 
-- **Real voices** — clients speak to you via the browser's built‑in speech synthesis, each persona
-  tuned with its own pitch and pace. Toggle voices/sounds anytime.
-- **Live ticket queue** — a busy floor that keeps filling up. Triage tickets by category, tier and
-  difficulty.
-- **Client tiers & difficulty** — from a friendly Standard user to a furious Executive on a deadline.
-  Difficulty ranges from trainee (★) to nightmare (★★★★★).
-- **Real ticketing flow** — multi‑step conversations where you pick the best action. Verify identity,
-  isolate ransomware, de‑escalate a VIP, provision a new hire, and more.
-- **Live scoring** — customer satisfaction (CSAT), SLA countdown timers, and a running mood meter.
-- **Zero to hero progression** — earn XP, level up through 8 ranks, keep a first‑try streak, and
-  unlock badges. Progress is saved locally.
-- **Day‑in‑the‑life shifts** — work a shift, then get a graded end‑of‑day summary.
-- **Coaching** — miss a step and an in‑chat coach explains the right approach, so you actually learn
-  real‑world help desk best practices.
+- **Real voices** — clients speak via the browser's speech synthesis, each persona tuned with pitch and pace. Pick a **voice per client** in settings.
+- **41 ticket scenarios** — password resets to ransomware, major incidents, on-call pages, and war stories.
+- **Live ticket queue** — tickets keep arriving. **Queue aging** makes ignored tickets angrier before you even open them.
+- **Day & night shifts** — night shift uses a cooler UI theme and biases toward Security, VIP, and on-call escalations.
+- **Client tiers & difficulty** — Standard through Executive, difficulty ★ to ★★★★★.
+- **Real ticketing flow** — multi-step conversations, in-chat coaching on wrong picks, post-ticket debriefs.
+- **Ticket documentation** — classify category, priority, and write an accurate **resolution note** before closing.
+- **Live scoring** — CSAT, SLA timers (paused across refresh), mood meter, first-try streaks.
+- **8 ranks + badges** — XP progression with mid-shift badge toasts.
+- **Certification gates** — 7 exams unlock harder ticket pools; XP alone isn't enough.
+- **Study Mode** — full knowledge base + certification exams.
+- **Practice Library** — replay any scenario; **Replay my mistakes** from the dashboard.
+- **Performance dashboard** — CSAT trends, category strengths/weaknesses, SLA and first-try rates.
+- **Shift persistence** — resume an in-progress shift after refresh; export/import save files.
+- **PWA** — installable and works offline after first load.
+- **Adaptive queue** — leans toward categories where your CSAT is weakest.
 
 ## 🚀 Getting started
 
@@ -45,6 +47,7 @@ Then open the printed local URL. Enter an agent name and clock in.
 ```bash
 npm run build      # outputs a static site to dist/
 npm run preview    # preview the production build locally
+npm test           # unit tests (cert gates, queue aging, timer)
 ```
 
 The `dist/` folder is a static site. Deploy it to any static host:
@@ -70,7 +73,8 @@ The `dist/` folder is a static site. Deploy it to any static host:
 - **Tailwind CSS** for the UI
 - **Web Speech API** (SpeechSynthesis) for client voices
 - **Web Audio API** for UI sound effects
-- **localStorage** for persistent progress
+- **localStorage** for persistent progress + optional JSON export/import
+- **vite-plugin-pwa** for offline install
 
 No servers, no accounts, no tracking.
 

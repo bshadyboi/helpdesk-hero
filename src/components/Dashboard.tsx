@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { worstMistakes } from "../game/mistakes";
 import { rankForXp } from "../game/ranks";
 import type { Category, Progress } from "../game/types";
 import { categoryIcon } from "./ui";
@@ -6,11 +7,13 @@ import { categoryIcon } from "./ui";
 interface Props {
   progress: Progress;
   onClose: () => void;
+  onReplayMistake?: (scenarioId: string) => void;
 }
 
-export default function Dashboard({ progress, onClose }: Props) {
+export default function Dashboard({ progress, onClose, onReplayMistake }: Props) {
   const rank = rankForXp(progress.xp);
   const history = progress.history;
+  const mistakes = useMemo(() => worstMistakes(progress, 3), [progress.history]);
   const avg = progress.ticketsResolved
     ? Math.round(progress.totalCsat / progress.ticketsResolved)
     : 0;
@@ -124,6 +127,36 @@ export default function Dashboard({ progress, onClose }: Props) {
                 </div>
               )}
             </div>
+
+            {mistakes.length > 0 && onReplayMistake && (
+              <div className="px-5 pb-5">
+                <SectionTitle>Replay my mistakes</SectionTitle>
+                <p className="mb-3 text-xs text-slate-500">
+                  Practice your lowest-CSAT tickets until the habit sticks.
+                </p>
+                <div className="space-y-2">
+                  {mistakes.map((m) => (
+                    <button
+                      key={m.scenarioId}
+                      onClick={() => {
+                        onReplayMistake(m.scenarioId);
+                        onClose();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-left transition hover:bg-rose-500/15"
+                    >
+                      <span className="text-xl">{categoryIcon[m.category as Category]}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-slate-100">{m.title}</div>
+                        <div className="text-xs text-slate-400">
+                          {m.csat}% CSAT{m.wrongPicks > 0 ? ` · ${m.wrongPicks} wrong pick${m.wrongPicks > 1 ? "s" : ""}` : ""}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-xs font-semibold text-brand-300">Practice ▸</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

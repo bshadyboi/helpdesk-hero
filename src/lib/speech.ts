@@ -7,6 +7,11 @@ import type { Persona } from "../game/types";
  */
 
 let cachedVoices: SpeechSynthesisVoice[] = [];
+let voiceOverrides: Record<string, string> = {};
+
+export function setVoiceOverrides(map: Record<string, string>) {
+  voiceOverrides = map;
+}
 
 function loadVoices(): SpeechSynthesisVoice[] {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
@@ -25,9 +30,21 @@ export function speechSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
-function pickVoice(hint: Persona["voiceHint"]): SpeechSynthesisVoice | null {
+export function listEnglishVoices(): SpeechSynthesisVoice[] {
+  const voices = cachedVoices.length ? cachedVoices : loadVoices();
+  const english = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
+  return english.length ? english : voices;
+}
+
+function pickVoice(hint: Persona["voiceHint"], personaName?: string): SpeechSynthesisVoice | null {
   const voices = cachedVoices.length ? cachedVoices : loadVoices();
   if (!voices.length) return null;
+
+  if (personaName && voiceOverrides[personaName]) {
+    const override = voiceOverrides[personaName];
+    const match = voices.find((v) => v.name === override);
+    if (match) return match;
+  }
 
   const english = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
   const pool = english.length ? english : voices;
@@ -72,7 +89,7 @@ export function speak(text: string, { persona, onStart, onEnd }: SpeakOpts) {
 
   const clean = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").replace(/["“”]/g, "");
   const utter = new SpeechSynthesisUtterance(clean);
-  const voice = pickVoice(persona.voiceHint);
+  const voice = pickVoice(persona.voiceHint, persona.name);
   if (voice) utter.voice = voice;
   utter.pitch = persona.pitch;
   utter.rate = persona.rate;

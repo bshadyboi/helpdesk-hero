@@ -1,7 +1,11 @@
 import { useEffect, useReducer } from "react";
 import type { Category, CategoryStat, ChatMessage, Mood, Scenario, TicketResult } from "./types";
 import { pickAdaptiveScenario, type ShiftType } from "./adaptive";
+import { escalatedMood, queueAgingInfo } from "./queueAging";
 import { scenarioById } from "./scenarios";
+import { activeElapsedMs, activeElapsedSeconds } from "./timer";
+
+export { activeElapsedSeconds };
 
 export const SHIFT_START_MIN = 9 * 60; // 9:00 AM
 export const SHIFT_NIGHT_START = 17 * 60; // 5:00 PM
@@ -17,6 +21,8 @@ export interface QueueItem {
   instanceId: string;
   scenario: Scenario;
   arrivedClock: number;
+  /** wall-clock when the ticket entered the queue — drives queue aging */
+  arrivedAtReal: number;
 }
 
 interface Pending {
@@ -88,30 +94,23 @@ function makeQueueItem(state: ShiftState, exclude: string[]): QueueItem {
     state.categoryStats,
     state.shiftType
   );
-  return { instanceId: uid("t"), scenario, arrivedClock: state.clock };
+  return { instanceId: uid("t"), scenario, arrivedClock: state.clock, arrivedAtReal: Date.now() };
 }
 
 function makePracticeItem(state: ShiftState, scenario: Scenario): QueueItem {
-  return { instanceId: uid("t"), scenario, arrivedClock: state.clock };
+  return { instanceId: uid("t"), scenario, arrivedClock: state.clock, arrivedAtReal: Date.now() };
 }
 
 function msg(role: ChatMessage["role"], text: string): ChatMessage {
   return { id: uid("m"), role, text, ts: Date.now() };
 }
 
-function activeElapsedMs(a: ActiveState, now = Date.now()): number {
-  if (a.elapsedMs == null) {
-    if (a.startReal) return Math.max(0, now - a.startReal);
-    return 0;
-  }
-  const anchor = a.timerAnchor ?? now;
-  const base = a.elapsedMs;
-  if (a.phase === "resolved") return base;
-  return base + Math.max(0, now - anchor);
+function activeElapsedMsLocal(a: ActiveState, now = Date.now()): number {
+  return activeElapsedMs(a, now);
 }
 
 function computeResult(a: ActiveState): TicketResult {
-  const timeSeconds = Math.round(activeElapsedMs(a) / 1000);
+  const timeSeconds = Math.round(activeElapsedMsLocal(a) / 1000);
   const s = a.item.scenario;
   const slaMet = timeSeconds <= s.slaSeconds;
   const csat = Math.max(0, Math.min(100, Math.round(a.csat)));
@@ -214,11 +213,14 @@ function reducer(state: ShiftState, action: Action): ShiftState {
       if (!item) return state;
       const step = item.scenario.steps[0];
       const now = Date.now();
+      const aging = queueAgingInfo(item.arrivedAtReal, now);
+      const startCsat = Math.max(50, 80 + aging.csatPenalty);
+      const startMood = escalatedMood(step.clientMood, aging.level);
       const active: ActiveState = {
         item,
         stepIndex: 0,
-        csat: 80,
-        mood: step.clientMood,
+        csat: startCsat,
+        mood: startMood,
         messages: [],
         wrongPicks: 0,
         startReal: now,
@@ -377,10 +379,15 @@ function snapshotStateForSave(state: ShiftState): ShiftState {
 }
 
 function hydrateLoadedShift(saved: ShiftState): ShiftState {
+  const now = Date.now();
+  const queue = saved.queue.map((q) => ({
+    ...q,
+    arrivedAtReal: q.arrivedAtReal ?? now,
+  }));
   if (saved.active && saved.active.phase !== "resolved") {
-    return { ...saved, active: normalizeActiveTimer(saved.active) };
+    return { ...saved, queue, active: normalizeActiveTimer(saved.active) };
   }
-  return saved;
+  return { ...saved, queue };
 }
 
 const SHIFT_STORAGE_KEY = "helpdesk-hero:shift:v1";
@@ -509,10 +516,6 @@ export function useShift(
   }, [state.ended, state.resolved.length]);
 
   return { state, dispatch };
-}
-
-export function activeElapsedSeconds(active: ActiveState): number {
-  return Math.floor(activeElapsedMs(active) / 1000);
 }
 
 export function formatClock(minutes: number): string {
