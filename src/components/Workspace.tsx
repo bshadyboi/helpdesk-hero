@@ -7,13 +7,21 @@ import CustomerCard from "./CustomerCard";
 import KnowledgePanel from "./KnowledgePanel";
 import ResultModal from "./ResultModal";
 import ShiftSummary from "./ShiftSummary";
+import ShiftBriefing from "./ShiftBriefing";
 import TicketQueue from "./TicketQueue";
 import TopBar from "./TopBar";
+import Tutorial from "./Tutorial";
 
 interface Props {
   game: UseGame;
+  practiceScenarioId?: string | null;
+  freshShift?: boolean;
   onExit: () => void;
+  onPracticeEnd: () => void;
   onOpenTrophy: () => void;
+  onOpenDashboard: () => void;
+  onOpenStudy: () => void;
+  onOpenPractice: () => void;
 }
 
 interface Outcome {
@@ -22,13 +30,34 @@ interface Outcome {
   newBadges: string[];
 }
 
-export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
-  const { progress, level, recordResult, toggleSound, toggleVoice } = game;
-  const { state, dispatch } = useShift(level);
+export default function Workspace({
+  game,
+  practiceScenarioId,
+  freshShift,
+  onExit,
+  onPracticeEnd,
+  onOpenTrophy,
+  onOpenDashboard,
+  onOpenStudy,
+  onOpenPractice,
+}: Props) {
+  const {
+    progress,
+    level,
+    recordResult,
+    recordDocumentation,
+    markTutorialSeen,
+    toggleSound,
+    toggleVoice,
+  } = game;
+  const { state, dispatch } = useShift(level, progress.categoryStats, progress.ticketsResolved);
 
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string; tier: string } | null>(null);
+  const [showTutorial, setShowTutorial] = useState(!progress.tutorialSeen && !practiceScenarioId);
+  const [showBriefing, setShowBriefing] = useState(false);
+  const [briefingReady, setBriefingReady] = useState(false);
 
   // Seed "already handled" trackers from any restored shift so a refresh
   // neither re-speaks the current message nor re-banks a resolved ticket.
@@ -43,20 +72,45 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
   const startedRef = useRef(false);
   const prevQueueLen = useRef(0);
 
-  // Kick off the first shift once — but only if there isn't a saved shift to resume.
+  // Kick off shift or practice once — resume saved shift when neither flag is set.
   useEffect(() => {
     if (!startedRef.current) {
       startedRef.current = true;
       const hasSavedShift =
-        state.active !== null ||
-        state.queue.length > 0 ||
-        state.resolved.length > 0 ||
-        state.ended;
-      if (!hasSavedShift) dispatch({ type: "START", level });
+        !practiceScenarioId &&
+        !freshShift &&
+        (state.active !== null ||
+          state.queue.length > 0 ||
+          state.resolved.length > 0 ||
+          state.ended);
+
+      if (practiceScenarioId) {
+        dispatch({
+          type: "PRACTICE_START",
+          level,
+          scenarioId: practiceScenarioId,
+          categoryStats: progress.categoryStats,
+        });
+      } else if (!hasSavedShift) {
+        dispatch({
+          type: "START",
+          level,
+          categoryStats: progress.categoryStats,
+        });
+        setBriefingReady(true);
+      }
     }
     return () => cancelSpeech();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Show briefing after tutorial on a fresh shift (not resume, not practice).
+  useEffect(() => {
+    if (briefingReady && !showTutorial && !practiceScenarioId) {
+      setShowBriefing(true);
+      setBriefingReady(false);
+    }
+  }, [briefingReady, showTutorial, practiceScenarioId]);
 
   // Speak new client messages + play a chime.
   const active = state.active;
@@ -96,6 +150,9 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
     if (s.tier === "VIP" || s.tier === "Executive") extra.push("vip-handled");
     if (s.category === "Security") extra.push("security-pro");
     if (state.resolved.length >= SHIFT_GOAL) extra.push("shift-complete");
+    if (s.id === "bec-wire") extra.push("fraud-buster");
+    if (s.id === "email-outage") extra.push("incident-commander");
+    if (s.id === "bitlocker-lock") extra.push("encryption-pro");
 
     const res = recordResult(active.lastResult, extra);
     setOutcome(res);
@@ -165,8 +222,15 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
     prevQueueLen.current = 0;
     setToast(null);
     setOutcome(null);
-    dispatch({ type: "START", level });
+    dispatch({
+      type: "START",
+      level,
+      categoryStats: progress.categoryStats,
+    });
+    setShowBriefing(true);
   };
+
+  const isPractice = state.mode === "practice";
 
   if (state.ended) {
     return (
@@ -175,10 +239,12 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
         progress={progress}
         startClock={SHIFT_START_MIN}
         endClock={state.clock}
+        practiceMode={isPractice}
         onNewShift={handleNewShift}
         onHome={() => {
           cancelSpeech();
-          onExit();
+          if (isPractice) onPracticeEnd();
+          else onExit();
         }}
       />
     );
@@ -199,6 +265,10 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
         }}
         onEndShift={handleEndShift}
         onOpenTrophy={onOpenTrophy}
+        onOpenDashboard={onOpenDashboard}
+        onOpenStudy={onOpenStudy}
+        onOpenPractice={onOpenPractice}
+        practiceMode={isPractice}
       />
 
       <main className="mx-auto grid w-full max-w-[1600px] flex-1 grid-cols-1 gap-4 p-4 xl:grid-cols-[300px_minmax(0,1fr)_330px]">
@@ -245,11 +315,32 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
       {showModal && active?.lastResult && outcome && (
         <ResultModal
           result={active.lastResult}
+          scenario={active.item.scenario}
           leveledUp={outcome.leveledUp}
           newLevel={outcome.newLevel}
           newBadges={outcome.newBadges}
-          shiftDone={state.resolved.length >= SHIFT_GOAL}
+          onDocumented={recordDocumentation}
+          shiftDone={isPractice ? true : state.resolved.length >= SHIFT_GOAL}
+          practiceMode={isPractice}
           onNext={handleNext}
+        />
+      )}
+
+      {showBriefing && (
+        <ShiftBriefing
+          progress={progress}
+          level={level}
+          onBegin={() => setShowBriefing(false)}
+        />
+      )}
+
+      {showTutorial && (
+        <Tutorial
+          agentName={progress.agentName}
+          onClose={() => {
+            markTutorialSeen();
+            setShowTutorial(false);
+          }}
         />
       )}
     </div>

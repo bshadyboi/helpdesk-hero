@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Progress, TicketResult } from "./types";
 import { BADGES, rankForXp } from "./ranks";
+import { scenarioById } from "./scenarios";
 
 const STORAGE_KEY = "helpdesk-hero:v1";
+const HISTORY_CAP = 50;
+const EXAM_XP_REWARD = 150;
 
 const defaultProgress: Progress = {
   xp: 0,
@@ -15,6 +18,11 @@ const defaultProgress: Progress = {
   soundOn: true,
   voiceOn: true,
   agentName: "",
+  history: [],
+  categoryStats: {},
+  passedExamLevels: [],
+  docsCorrect: 0,
+  tutorialSeen: false,
 };
 
 function load(): Progress {
@@ -40,6 +48,9 @@ export interface UseGame {
     result: TicketResult,
     extraBadges?: string[]
   ) => { leveledUp: boolean; newBadges: string[]; newLevel: number };
+  recordDocumentation: (correct: boolean) => boolean;
+  passExam: (level: number) => { alreadyPassed: boolean; xpAwarded: number };
+  markTutorialSeen: () => void;
   resetProgress: () => void;
 }
 
@@ -99,6 +110,29 @@ export function useGame(): UseGame {
       if (afterLevel >= 8) unlock("hero");
       for (const b of extraBadges) unlock(b);
 
+      // Track per-category performance + a rolling history for the dashboard.
+      const category = scenarioById(result.scenarioId)?.category ?? "Accounts";
+      const prevStat = prev.categoryStats[category] ?? { resolved: 0, csatSum: 0 };
+      const categoryStats = {
+        ...prev.categoryStats,
+        [category]: {
+          resolved: prevStat.resolved + 1,
+          csatSum: prevStat.csatSum + result.csat,
+        },
+      };
+      const history = [
+        ...prev.history,
+        {
+          scenarioId: result.scenarioId,
+          category,
+          csat: result.csat,
+          xpEarned: result.xpEarned,
+          slaMet: result.slaMet,
+          wrongPicks: result.wrongPicks,
+          ts: Date.now(),
+        },
+      ].slice(-HISTORY_CAP);
+
       return {
         ...prev,
         xp,
@@ -108,11 +142,57 @@ export function useGame(): UseGame {
         bestStreak,
         completedScenarioIds,
         unlockedBadgeIds: Array.from(has),
+        categoryStats,
+        history,
       };
     });
 
     if (newBadges.length) setNewlyUnlocked((n) => [...n, ...newBadges]);
     return { leveledUp, newBadges, newLevel };
+  }, []);
+
+  // Log wrap-up documentation accuracy; returns true when the "By The Book" badge
+  // was newly unlocked so the UI can celebrate it.
+  const recordDocumentation = useCallback<UseGame["recordDocumentation"]>((correct) => {
+    let unlockedBadge = false;
+    setProgress((prev) => {
+      const docsCorrect = prev.docsCorrect + (correct ? 1 : 0);
+      const has = new Set(prev.unlockedBadgeIds);
+      if (correct && !has.has("documentarian")) {
+        has.add("documentarian");
+        unlockedBadge = true;
+      }
+      return { ...prev, docsCorrect, unlockedBadgeIds: Array.from(has) };
+    });
+    if (unlockedBadge) setNewlyUnlocked((n) => [...n, "documentarian"]);
+    return unlockedBadge;
+  }, []);
+
+  // Bank a passed certification exam: awards XP once and unlocks "Certified".
+  const passExam = useCallback<UseGame["passExam"]>((examLevel) => {
+    let alreadyPassed = false;
+    let xpAwarded = 0;
+    setProgress((prev) => {
+      if (prev.passedExamLevels.includes(examLevel)) {
+        alreadyPassed = true;
+        return prev;
+      }
+      xpAwarded = EXAM_XP_REWARD;
+      const has = new Set(prev.unlockedBadgeIds);
+      if (!has.has("certified")) has.add("certified");
+      return {
+        ...prev,
+        xp: prev.xp + EXAM_XP_REWARD,
+        passedExamLevels: [...prev.passedExamLevels, examLevel],
+        unlockedBadgeIds: Array.from(has),
+      };
+    });
+    if (!alreadyPassed) setNewlyUnlocked((n) => [...n, "certified"]);
+    return { alreadyPassed, xpAwarded };
+  }, []);
+
+  const markTutorialSeen = useCallback(() => {
+    setProgress((p) => (p.tutorialSeen ? p : { ...p, tutorialSeen: true }));
   }, []);
 
   // Allow tier/category-specific badges to be unlocked from the UI layer.
@@ -131,6 +211,9 @@ export function useGame(): UseGame {
     toggleSound,
     toggleVoice,
     recordResult,
+    recordDocumentation,
+    passExam,
+    markTutorialSeen,
     resetProgress,
   };
 }

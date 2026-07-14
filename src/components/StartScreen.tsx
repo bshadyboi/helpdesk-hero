@@ -1,19 +1,34 @@
 import { useState } from "react";
 import { RANKS, rankForXp } from "../game/ranks";
+import { formatClock, getSavedShiftSummary, hasSavedShift } from "../game/useShift";
 import type { Progress } from "../game/types";
 import { speechSupported } from "../lib/speech";
 
 interface Props {
   progress: Progress;
-  onStart: (name: string) => void;
+  onResume: () => void;
+  onNewShift: (name: string) => void;
+  onOpenPractice: () => void;
   onReset: () => void;
   onOpenTrophy: () => void;
+  onOpenDashboard: () => void;
+  onOpenStudy: () => void;
 }
 
-export default function StartScreen({ progress, onStart, onReset, onOpenTrophy }: Props) {
+export default function StartScreen({
+  progress,
+  onResume,
+  onNewShift,
+  onOpenPractice,
+  onReset,
+  onOpenTrophy,
+  onOpenDashboard,
+  onOpenStudy,
+}: Props) {
   const [name, setName] = useState(progress.agentName || "");
   const rank = rankForXp(progress.xp);
   const returning = progress.ticketsResolved > 0;
+  const saved = hasSavedShift() ? getSavedShiftSummary() : null;
 
   return (
     <div className="min-h-full grid-bg flex items-center justify-center px-4 py-10">
@@ -34,24 +49,54 @@ export default function StartScreen({ progress, onStart, onReset, onOpenTrophy }
 
         <div className="panel p-6 sm:p-8">
           <label className="mb-2 block text-sm font-semibold text-slate-300">Your agent name</label>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onStart(name)}
+              onKeyDown={(e) => e.key === "Enter" && onNewShift(name)}
               placeholder="e.g. Alex Rivera"
               maxLength={24}
               className="flex-1 rounded-xl border border-white/10 bg-ink-900/70 px-4 py-3 text-slate-100 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-400/20"
             />
-            <button className="btn-primary text-base" onClick={() => onStart(name)}>
-              {returning ? "Clock in ▸" : "Start your shift ▸"}
+            {saved ? (
+              <>
+                <button className="btn-primary text-base" onClick={onResume}>
+                  Resume shift ▸
+                </button>
+                <button className="btn-ghost text-base" onClick={() => onNewShift(name)}>
+                  New shift
+                </button>
+              </>
+            ) : (
+              <button className="btn-primary text-base" onClick={() => onNewShift(name)}>
+                {returning ? "Clock in ▸" : "Start your shift ▸"}
+              </button>
+            )}
+            <button className="btn-ghost text-base" onClick={onOpenPractice} title="Practice Library">
+              🎯 Practice
+            </button>
+            <button className="btn-ghost text-base" onClick={onOpenStudy} title="Study Mode & certifications">
+              📚 Study
             </button>
             {returning && (
               <button className="btn-ghost text-base" onClick={onOpenTrophy} title="Trophy Room">
                 🏆 Trophies
               </button>
             )}
+            {returning && (
+              <button className="btn-ghost text-base" onClick={onOpenDashboard} title="Performance dashboard">
+                📈 Stats
+              </button>
+            )}
           </div>
+
+          {saved && (
+            <div className="mt-4 rounded-xl border border-brand-400/25 bg-brand-500/10 p-4 text-sm text-slate-200">
+              <span className="font-semibold text-brand-200">Shift in progress:</span>{" "}
+              {saved.resolved} resolved · {saved.queue} waiting
+              {saved.hasActive ? " · 1 open ticket" : ""} · clock at {formatClock(saved.clock)}
+            </div>
+          )}
 
           {returning && (
             <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-white/5 bg-white/5 p-4">

@@ -1,11 +1,14 @@
 import { useEffect, useReducer } from "react";
-import type { ChatMessage, Mood, Scenario, TicketResult } from "./types";
-import { SCENARIOS } from "./scenarios";
+import type { Category, CategoryStat, ChatMessage, Mood, Scenario, TicketResult } from "./types";
+import { pickAdaptiveScenario } from "./adaptive";
+import { scenarioById } from "./scenarios";
 
 export const SHIFT_START_MIN = 9 * 60; // 9:00 AM
 export const SHIFT_GOAL = 6;
-const MIN_PER_TICKET = Math.round((8 * 60) / SHIFT_GOAL); // spread across an 8h day
+const MIN_PER_TICKET = Math.round((8 * 60) / SHIFT_GOAL);
 const MAX_QUEUE = 4;
+
+export type ShiftMode = "shift" | "practice";
 
 export type Phase = "opening-typing" | "awaiting" | "reply-typing" | "resolved";
 
@@ -44,12 +47,14 @@ export interface ShiftState {
   ended: boolean;
   seq: number;
   level: number;
-  /** instanceIds whose result has already been banked to progress (prevents double-counting on refresh) */
   recorded: string[];
+  mode: ShiftMode;
+  categoryStats: Partial<Record<Category, CategoryStat>>;
 }
 
 type Action =
-  | { type: "START"; level: number }
+  | { type: "START"; level: number; categoryStats: Partial<Record<Category, CategoryStat>> }
+  | { type: "PRACTICE_START"; level: number; scenarioId: string; categoryStats: Partial<Record<Category, CategoryStat>> }
   | { type: "ENQUEUE" }
   | { type: "OPEN"; instanceId: string }
   | { type: "REVEAL_OPENING" }
@@ -58,21 +63,18 @@ type Action =
   | { type: "CLOSE_ACTIVE" }
   | { type: "END_SHIFT" }
   | { type: "SET_LEVEL"; level: number }
+  | { type: "SET_CATEGORY_STATS"; categoryStats: Partial<Record<Category, CategoryStat>> }
   | { type: "MARK_RECORDED"; instanceId: string };
 
 let idCounter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${idCounter++}`;
 
-function pickScenario(level: number, excludeIds: string[]): Scenario {
-  const available = SCENARIOS.filter((s) => s.minLevel <= level);
-  const fresh = available.filter((s) => !excludeIds.includes(s.id));
-  const pool = fresh.length ? fresh : available.length ? available : SCENARIOS;
-  // Weight slightly toward variety in difficulty.
-  return pool[Math.floor(Math.random() * pool.length)];
+function makeQueueItem(state: ShiftState, exclude: string[]): QueueItem {
+  const scenario = pickAdaptiveScenario(state.level, exclude, state.categoryStats);
+  return { instanceId: uid("t"), scenario, arrivedClock: state.clock };
 }
 
-function makeQueueItem(state: ShiftState, exclude: string[]): QueueItem {
-  const scenario = pickScenario(state.level, exclude);
+function makePracticeItem(state: ShiftState, scenario: Scenario): QueueItem {
   return { instanceId: uid("t"), scenario, arrivedClock: state.clock };
 }
 
@@ -114,6 +116,8 @@ function reducer(state: ShiftState, action: Action): ShiftState {
         seq: 0,
         level: action.level,
         recorded: [],
+        mode: "shift",
+        categoryStats: action.categoryStats,
       };
       const exclude: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -124,11 +128,46 @@ function reducer(state: ShiftState, action: Action): ShiftState {
       return s;
     }
 
+    case "PRACTICE_START": {
+      const scenario = scenarioById(action.scenarioId);
+      if (!scenario || scenario.minLevel > action.level) return state;
+      const item = makePracticeItem(
+        {
+          clock: SHIFT_START_MIN,
+          queue: [],
+          resolved: [],
+          active: null,
+          ended: false,
+          seq: 0,
+          level: action.level,
+          recorded: [],
+          mode: "practice",
+          categoryStats: action.categoryStats,
+        },
+        scenario
+      );
+      return {
+        clock: SHIFT_START_MIN,
+        queue: [item],
+        resolved: [],
+        active: null,
+        ended: false,
+        seq: 0,
+        level: action.level,
+        recorded: [],
+        mode: "practice",
+        categoryStats: action.categoryStats,
+      };
+    }
+
+    case "SET_CATEGORY_STATS":
+      return { ...state, categoryStats: action.categoryStats };
+
     case "SET_LEVEL":
       return { ...state, level: action.level };
 
     case "ENQUEUE": {
-      if (state.ended) return state;
+      if (state.ended || state.mode === "practice") return state;
       if (state.queue.length >= MAX_QUEUE) return state;
       const exclude = [
         ...state.queue.map((q) => q.scenario.id),
@@ -251,10 +290,12 @@ function reducer(state: ShiftState, action: Action): ShiftState {
     case "CLOSE_ACTIVE": {
       if (!state.active) return state;
       const clock = state.clock + MIN_PER_TICKET;
-      const ended = state.resolved.length >= SHIFT_GOAL;
-      let next: ShiftState = { ...state, active: null, clock, ended };
-      // Top the queue back up when a ticket closes.
-      if (!ended && next.queue.length < 3) {
+      const shiftDone =
+        state.mode === "practice"
+          ? state.resolved.length >= 1
+          : state.resolved.length >= SHIFT_GOAL;
+      let next: ShiftState = { ...state, active: null, clock, ended: shiftDone };
+      if (!shiftDone && state.mode === "shift" && next.queue.length < 3) {
         const exclude = next.queue.map((q) => q.scenario.id);
         next = { ...next, queue: [...next.queue, makeQueueItem(next, exclude)] };
       }
@@ -283,6 +324,8 @@ const initialState: ShiftState = {
   seq: 0,
   level: 1,
   recorded: [],
+  mode: "shift",
+  categoryStats: {},
 };
 
 const SHIFT_STORAGE_KEY = "helpdesk-hero:shift:v1";
@@ -297,7 +340,7 @@ function loadShift(): ShiftState {
     if (!saved || typeof saved !== "object" || !Array.isArray(saved.queue)) {
       return initialState;
     }
-    return { ...initialState, ...saved };
+    return { ...initialState, ...saved, mode: saved.mode ?? "shift", categoryStats: saved.categoryStats ?? {} };
   } catch {
     return initialState;
   }
@@ -312,7 +355,55 @@ export function clearSavedShift() {
   }
 }
 
-export function useShift(level: number) {
+export interface SavedShiftSummary {
+  resolved: number;
+  queue: number;
+  hasActive: boolean;
+  clock: number;
+  mode: ShiftMode;
+}
+
+/** True when a resumable shift exists in localStorage. */
+export function hasSavedShift(): boolean {
+  try {
+    const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw) as Partial<ShiftState>;
+    if (!saved || saved.mode === "practice") return false;
+    return Boolean(
+      saved.active || (saved.queue && saved.queue.length > 0) || (saved.resolved && saved.resolved.length > 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getSavedShiftSummary(): SavedShiftSummary | null {
+  try {
+    const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<ShiftState>;
+    if (!saved || saved.mode === "practice") return null;
+    const has =
+      saved.active || (saved.queue && saved.queue.length > 0) || (saved.resolved && saved.resolved.length > 0);
+    if (!has) return null;
+    return {
+      resolved: saved.resolved?.length ?? 0,
+      queue: saved.queue?.length ?? 0,
+      hasActive: Boolean(saved.active),
+      clock: saved.clock ?? SHIFT_START_MIN,
+      mode: saved.mode ?? "shift",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function useShift(
+  level: number,
+  categoryStats: Partial<Record<Category, CategoryStat>>,
+  ticketsResolved: number
+) {
   const [state, dispatch] = useReducer(reducer, undefined, loadShift);
 
   // Persist the live shift so a refresh resumes exactly where the player left off.
@@ -323,6 +414,11 @@ export function useShift(level: number) {
       // ignore storage quota / serialization errors
     }
   }, [state]);
+
+  // Refresh queue weights after each resolved ticket (weak-area targeting).
+  useEffect(() => {
+    dispatch({ type: "SET_CATEGORY_STATS", categoryStats });
+  }, [ticketsResolved, categoryStats]);
 
   // Keep the difficulty gate in sync with the player's live level.
   useEffect(() => {
@@ -344,9 +440,9 @@ export function useShift(level: number) {
     }
   }, [state.active?.phase, state.active?.messages.length]);
 
-  // Live queue: new tickets arrive periodically for a "busy floor" feel.
+  // Live queue: new tickets arrive periodically (shift mode only).
   useEffect(() => {
-    if (state.ended || state.resolved.length >= SHIFT_GOAL) return;
+    if (state.ended || state.mode === "practice" || state.resolved.length >= SHIFT_GOAL) return;
     const t = setInterval(() => dispatch({ type: "ENQUEUE" }), 26000);
     return () => clearInterval(t);
   }, [state.ended, state.resolved.length]);

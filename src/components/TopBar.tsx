@@ -7,20 +7,28 @@ interface Props {
   progress: Progress;
   clock: number;
   resolvedCount: number;
+  practiceMode?: boolean;
   onToggleSound: () => void;
   onToggleVoice: () => void;
   onEndShift: () => void;
   onOpenTrophy: () => void;
+  onOpenDashboard: () => void;
+  onOpenStudy: () => void;
+  onOpenPractice: () => void;
 }
 
 export default function TopBar({
   progress,
   clock,
   resolvedCount,
+  practiceMode,
   onToggleSound,
   onToggleVoice,
   onEndShift,
   onOpenTrophy,
+  onOpenDashboard,
+  onOpenStudy,
+  onOpenPractice,
 }: Props) {
   const rank = rankForXp(progress.xp);
   const next = nextRank(progress.xp);
@@ -37,7 +45,9 @@ export default function TopBar({
             <div className="text-sm font-extrabold tracking-tight">
               Helpdesk <span className="text-gradient">Hero</span>
             </div>
-            <div className="text-[11px] text-slate-400">{progress.agentName || "Agent"}'s Shift</div>
+            <div className="text-[11px] text-slate-400">
+              {practiceMode ? "Practice run" : `${progress.agentName || "Agent"}'s Shift`}
+            </div>
           </div>
         </div>
 
@@ -57,7 +67,7 @@ export default function TopBar({
         {/* Stats */}
         <div className="order-2 flex items-center gap-4 sm:order-3">
           <HudStat icon="🕘" label="Shift time" value={formatClock(clock)} />
-          <HudStat icon="✅" label="Resolved" value={`${resolvedCount}/${SHIFT_GOAL}`} />
+          <HudStat icon="✅" label="Resolved" value={practiceMode ? `${resolvedCount}/1` : `${resolvedCount}/${SHIFT_GOAL}`} />
           <HudStat icon="🔥" label="Streak" value={progress.currentStreak} />
           <HudStat
             icon="💬"
@@ -84,6 +94,27 @@ export default function TopBar({
             offIcon="🔕"
             title="UI sounds"
           />
+          <button
+            onClick={onOpenPractice}
+            title="Practice Library"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-white/5 bg-white/5 text-base transition hover:bg-white/10"
+          >
+            🎯
+          </button>
+          <button
+            onClick={onOpenStudy}
+            title="Study Mode & certifications"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-white/5 bg-white/5 text-base transition hover:bg-white/10"
+          >
+            📚
+          </button>
+          <button
+            onClick={onOpenDashboard}
+            title="Performance dashboard"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-white/5 bg-white/5 text-base transition hover:bg-white/10"
+          >
+            📈
+          </button>
           <button
             onClick={onOpenTrophy}
             title="Trophy Room"

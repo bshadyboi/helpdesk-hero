@@ -52,5 +52,10 @@ export const BADGES: Badge[] = [
   { id: "vip-handled", name: "VIP Whisperer", icon: "👑", desc: "Resolve a VIP or Executive ticket." },
   { id: "security-pro", name: "Threat Hunter", icon: "🛡️", desc: "Handle a security incident correctly." },
   { id: "shift-complete", name: "Full Shift", icon: "🌙", desc: "Complete a full day-in-the-life shift." },
+  { id: "fraud-buster", name: "Fraud Buster", icon: "🕵️", desc: "Stop a CEO-fraud / BEC scam before money moved." },
+  { id: "incident-commander", name: "Incident Commander", icon: "🚒", desc: "Run a company-wide major incident to resolution." },
+  { id: "encryption-pro", name: "Encryption Keymaster", icon: "🗝️", desc: "Recover an encrypted device the right way." },
+  { id: "documentarian", name: "By The Book", icon: "🗂️", desc: "Log a ticket with perfect category and priority." },
+  { id: "certified", name: "Certified", icon: "📜", desc: "Pass a certification exam." },
   { id: "hero", name: "Helpdesk Hero", icon: "🦸", desc: "Reach the final rank." },
 ];

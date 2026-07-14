@@ -1,4 +1,5 @@
 import { rankForXp } from "../game/ranks";
+import { buildManagerFeedback } from "../game/managerFeedback";
 import type { Progress, TicketResult } from "../game/types";
 import { formatClock } from "../game/useShift";
 
@@ -7,6 +8,7 @@ interface Props {
   progress: Progress;
   startClock: number;
   endClock: number;
+  practiceMode?: boolean;
   onNewShift: () => void;
   onHome: () => void;
 }
@@ -16,6 +18,7 @@ export default function ShiftSummary({
   progress,
   startClock,
   endClock,
+  practiceMode,
   onNewShift,
   onHome,
 }: Props) {
@@ -30,12 +33,14 @@ export default function ShiftSummary({
   const grade =
     avg >= 90 ? "A+" : avg >= 80 ? "A" : avg >= 70 ? "B" : avg >= 55 ? "C" : avg > 0 ? "D" : "—";
 
+  const manager = buildManagerFeedback(results, progress, grade);
+
   return (
     <div className="min-h-full grid-bg flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl animate-fade-up panel overflow-hidden">
         <div className="bg-gradient-to-br from-brand-500/20 to-accent-500/15 p-8 text-center">
           <div className="text-sm font-semibold uppercase tracking-widest text-brand-200">
-            Shift complete
+            {practiceMode ? "Practice complete" : "Shift complete"}
           </div>
           <h1 className="mt-1 text-4xl font-extrabold">
             {formatClock(startClock)} – {formatClock(endClock)}
@@ -56,6 +61,32 @@ export default function ShiftSummary({
           <Small label="SLAs met" value={`${slaMet}/${results.length}`} />
           <Small label="Flawless resolutions" value={`${flawless}/${results.length}`} />
         </div>
+
+        {!practiceMode && manager.lines.length > 0 && (
+          <div className="mx-5 mb-3 rounded-xl border border-white/10 bg-ink-900/60 p-4">
+            <div className="mb-2 flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-ink-800 text-xl">🧑‍💼</div>
+              <div>
+                <div className="font-bold">{manager.manager}</div>
+                <div className="text-xs text-slate-400">{manager.title}</div>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-slate-300">
+              {manager.lines.map((line, i) => (
+                <p key={i} className="leading-relaxed">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {practiceMode && results[0] && (
+          <div className="mx-5 mb-3 rounded-xl border border-brand-400/25 bg-brand-500/10 p-4 text-sm text-slate-200">
+            <span className="font-semibold text-brand-200">Practice note:</span> You earned full XP for
+            this run. Try another scenario from the library or clock in for a live shift.
+          </div>
+        )}
 
         <div className="px-5 py-3">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -92,11 +123,13 @@ export default function ShiftSummary({
           </div>
           <div className="flex gap-2">
             <button onClick={onHome} className="btn-ghost">
-              Home
+              {practiceMode ? "Back to library" : "Home"}
             </button>
-            <button onClick={onNewShift} className="btn-primary">
-              Start next shift ▸
-            </button>
+            {!practiceMode && (
+              <button onClick={onNewShift} className="btn-primary">
+                Start next shift ▸
+              </button>
+            )}
           </div>
         </div>
       </div>

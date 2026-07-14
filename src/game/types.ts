@@ -94,6 +94,23 @@ export interface TicketResult {
   wrongPicks: number;
 }
 
+/** Per-ticket record kept for the performance dashboard (trend + breakdown). */
+export interface HistoryEntry {
+  scenarioId: string;
+  category: Category;
+  csat: number;
+  xpEarned: number;
+  slaMet: boolean;
+  wrongPicks: number;
+  ts: number;
+}
+
+/** Rolling per-category performance for strengths/weaknesses. */
+export interface CategoryStat {
+  resolved: number;
+  csatSum: number;
+}
+
 export interface Progress {
   xp: number;
   ticketsResolved: number;
@@ -105,4 +122,14 @@ export interface Progress {
   soundOn: boolean;
   voiceOn: boolean;
   agentName: string;
+  /** last N resolved tickets, newest last — powers the dashboard trend */
+  history: HistoryEntry[];
+  /** per-category tallies for the dashboard breakdown */
+  categoryStats: Partial<Record<Category, CategoryStat>>;
+  /** rank levels whose certification exam has been passed */
+  passedExamLevels: number[];
+  /** number of tickets whose wrap-up documentation was fully correct */
+  docsCorrect: number;
+  /** whether the first-time floor tutorial has been shown */
+  tutorialSeen: boolean;
 }

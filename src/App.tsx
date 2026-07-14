@@ -1,63 +1,110 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Achievements from "./components/Achievements";
+import Dashboard from "./components/Dashboard";
+import PracticeLibrary from "./components/PracticeLibrary";
 import StartScreen from "./components/StartScreen";
+import StudyScreen from "./components/StudyScreen";
 import Workspace from "./components/Workspace";
 import { useGame } from "./game/useGame";
 import { clearSavedShift } from "./game/useShift";
 
-const SCREEN_KEY = "helpdesk-hero:screen";
-
 export default function App() {
   const game = useGame();
-  // Remember whether the player was clocked in so a refresh doesn't dump them
-  // back on the sign-in screen.
-  const [screen, setScreen] = useState<"start" | "work">(() => {
-    try {
-      return localStorage.getItem(SCREEN_KEY) === "work" ? "work" : "start";
-    } catch {
-      return "start";
-    }
-  });
+  const [screen, setScreen] = useState<"start" | "work">("start");
+  const [practiceScenarioId, setPracticeScenarioId] = useState<string | null>(null);
+  const [freshShift, setFreshShift] = useState(false);
   const [showTrophy, setShowTrophy] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showStudy, setShowStudy] = useState(false);
+  const [showPracticeLib, setShowPracticeLib] = useState(false);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(SCREEN_KEY, screen);
-    } catch {
-      // ignore storage errors
+  const enterWork = (opts: { practiceId?: string | null; fresh?: boolean }) => {
+    if (opts.practiceId) {
+      clearSavedShift();
+      setPracticeScenarioId(opts.practiceId);
+      setFreshShift(false);
+    } else if (opts.fresh) {
+      clearSavedShift();
+      setPracticeScenarioId(null);
+      setFreshShift(true);
+    } else {
+      setPracticeScenarioId(null);
+      setFreshShift(false);
     }
-  }, [screen]);
+    setScreen("work");
+  };
 
   return (
     <div className="min-h-full">
       {screen === "start" ? (
         <StartScreen
           progress={game.progress}
-          onStart={(name) => {
+          onResume={() => enterWork({})}
+          onNewShift={(name) => {
             game.setAgentName(name);
-            // Clocking in always begins a fresh shift.
-            clearSavedShift();
-            setScreen("work");
+            enterWork({ fresh: true });
           }}
+          onOpenPractice={() => setShowPracticeLib(true)}
           onOpenTrophy={() => setShowTrophy(true)}
+          onOpenDashboard={() => setShowDashboard(true)}
+          onOpenStudy={() => setShowStudy(true)}
           onReset={() => {
             if (confirm("Reset all progress, ranks, and badges? This can't be undone.")) {
               game.resetProgress();
               clearSavedShift();
+              setPracticeScenarioId(null);
               setScreen("start");
             }
           }}
         />
       ) : (
         <Workspace
-          key="work"
+          key={practiceScenarioId ?? (freshShift ? "fresh" : "resume")}
           game={game}
-          onExit={() => setScreen("start")}
+          practiceScenarioId={practiceScenarioId}
+          freshShift={freshShift}
+          onExit={() => {
+            setPracticeScenarioId(null);
+            setFreshShift(false);
+            setScreen("start");
+          }}
+          onPracticeEnd={() => {
+            clearSavedShift();
+            setPracticeScenarioId(null);
+            setFreshShift(false);
+            setShowPracticeLib(true);
+            setScreen("start");
+          }}
           onOpenTrophy={() => setShowTrophy(true)}
+          onOpenDashboard={() => setShowDashboard(true)}
+          onOpenStudy={() => setShowStudy(true)}
+          onOpenPractice={() => {
+            setScreen("start");
+            setShowPracticeLib(true);
+          }}
         />
       )}
 
       {showTrophy && <Achievements progress={game.progress} onClose={() => setShowTrophy(false)} />}
+      {showDashboard && <Dashboard progress={game.progress} onClose={() => setShowDashboard(false)} />}
+      {showStudy && (
+        <StudyScreen
+          progress={game.progress}
+          onPassExam={game.passExam}
+          onClose={() => setShowStudy(false)}
+        />
+      )}
+      {showPracticeLib && (
+        <PracticeLibrary
+          level={game.level}
+          completedIds={game.progress.completedScenarioIds}
+          onPractice={(id) => {
+            game.setAgentName(game.progress.agentName || "Agent");
+            enterWork({ practiceId: id });
+          }}
+          onClose={() => setShowPracticeLib(false)}
+        />
+      )}
     </div>
   );
 }

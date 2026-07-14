@@ -62,6 +62,7 @@ export default function ChatPanel({ active, progress, speakingId, onPick, onRepl
   const step = s.steps[active.stepIndex];
   const showOptions = active.phase === "awaiting";
   const clientTyping = active.phase === "opening-typing" || active.phase === "reply-typing";
+  const correctOption = step.options.find((o) => o.correct);
 
   return (
     <section className="panel flex h-full flex-col overflow-hidden">
@@ -148,8 +149,16 @@ export default function ChatPanel({ active, progress, speakingId, onPick, onRepl
         )}
 
         {active.coaching && showOptions && (
-          <div className="mx-auto max-w-[92%] animate-fade-up rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
-            <span className="font-semibold">Coach:</span> {active.coaching}
+          <div className="mx-auto max-w-[92%] space-y-2">
+            <div className="animate-fade-up rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+              <span className="font-semibold">Coach:</span> {active.coaching}
+            </div>
+            {correctOption && (
+              <div className="animate-fade-up rounded-xl border border-brand-400/25 bg-brand-500/10 px-4 py-2.5 text-sm text-brand-100">
+                <span className="font-semibold">Better path:</span>{" "}
+                <span className="text-slate-200">{stripQuotes(correctOption.text)}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
