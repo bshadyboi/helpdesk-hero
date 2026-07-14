@@ -30,16 +30,29 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string; tier: string } | null>(null);
 
-  const spokenRef = useRef<Set<string>>(new Set());
-  const recordedRef = useRef<Set<string>>(new Set());
+  // Seed "already handled" trackers from any restored shift so a refresh
+  // neither re-speaks the current message nor re-banks a resolved ticket.
+  const spokenRef = useRef<Set<string>>(
+    new Set(
+      (state.active?.messages ?? [])
+        .filter((m) => m.role === "client")
+        .map((m) => m.id)
+    )
+  );
+  const recordedRef = useRef<Set<string>>(new Set(state.recorded));
   const startedRef = useRef(false);
   const prevQueueLen = useRef(0);
 
-  // Kick off the first shift once.
+  // Kick off the first shift once — but only if there isn't a saved shift to resume.
   useEffect(() => {
     if (!startedRef.current) {
       startedRef.current = true;
-      dispatch({ type: "START", level });
+      const hasSavedShift =
+        state.active !== null ||
+        state.queue.length > 0 ||
+        state.resolved.length > 0 ||
+        state.ended;
+      if (!hasSavedShift) dispatch({ type: "START", level });
     }
     return () => cancelSpeech();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,10 +77,19 @@ export default function Workspace({ game, onExit, onOpenTrophy }: Props) {
   }, [lastMsg?.id]);
 
   // Record a resolved ticket exactly once and capture the reward outcome.
+  // Guarded by both an in-memory ref (same session) and the persisted
+  // `recorded` list (survives refresh) so XP is never double-counted.
   useEffect(() => {
     if (!active?.lastResult) return;
-    if (recordedRef.current.has(active.item.instanceId)) return;
-    recordedRef.current.add(active.item.instanceId);
+    const instanceId = active.item.instanceId;
+    if (recordedRef.current.has(instanceId) || state.recorded.includes(instanceId)) {
+      // Already banked (e.g. resumed after a refresh) — show the result so the
+      // player can continue, but never re-award XP or badges.
+      setOutcome((cur) => cur ?? { leveledUp: false, newLevel: level, newBadges: [] });
+      return;
+    }
+    recordedRef.current.add(instanceId);
+    dispatch({ type: "MARK_RECORDED", instanceId });
 
     const s = active.item.scenario;
     const extra: string[] = [];

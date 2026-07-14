@@ -79,6 +79,72 @@ export const KB: KbArticle[] = [
     category: "Accounts",
     body: "Acknowledge feelings, apologize for the impact (not necessarily fault), state what you'll do next, and give a timeframe. Never argue. A calm, specific plan lowers the temperature faster than technical detail.",
   },
+  {
+    id: "kb-app-cache",
+    title: "App Won't Open / Misbehaving",
+    category: "Software",
+    body: "For a crashing or frozen desktop app: fully quit it (check Task Manager for leftover processes), then relaunch. If it still fails, sign out and back in, clear the app's local cache/config, and update to the latest version. A corrupt local cache is the #1 cause of a single app misbehaving while everything else works.",
+  },
+  {
+    id: "kb-cloud-sync",
+    title: "OneDrive / Cloud File Sync",
+    category: "Software",
+    body: "Check the sync client status icon: a red X means a conflict or sign-in issue, a spinning arrow means it's still uploading. Confirm the user is signed in, the account isn't over its storage quota, and no filename has illegal characters. If stuck, pause and resume sync, or reset the sync client. Files may be 'online-only' (Files On-Demand) rather than missing.",
+  },
+  {
+    id: "kb-drive-map",
+    title: "Mapped Network Drives",
+    category: "Network",
+    body: "Mapped drives commonly disconnect after a password change, a dropped VPN, or a server reboot. Confirm the user is on the network/VPN, then remap using their current credentials and the full server path (\\\\server\\share). Enable 'reconnect at logon' so it survives restarts. If one user is fine and another isn't, suspect permissions, not the server.",
+  },
+  {
+    id: "kb-cert-warning",
+    title: "Certificate / HTTPS Warnings",
+    category: "Network",
+    body: "A browser certificate warning can mean an expired certificate, a wrong system clock, or a genuine man-in-the-middle attack. Check the certificate details (who issued it, expiry) and the device's date/time before doing anything. Never coach users to routinely click through security warnings — investigate why it appeared and fix the root cause.",
+  },
+  {
+    id: "kb-power",
+    title: "Laptop Won't Charge",
+    category: "Hardware",
+    body: "Confirm the charger LED and that the cable is firmly seated at both ends. Try a different wall outlet and, for USB-C, a different port (some ports are data-only). Inspect the cable and port for damage or debris. Test with a known-good charger before declaring the battery or board dead. A hard reset / drained battery may need 15+ minutes on power before it responds.",
+  },
+  {
+    id: "kb-patching",
+    title: "Updates & Patch Management",
+    category: "Software",
+    body: "Deploy patches through the management tool, not ad-hoc. Test first, schedule outside working hours where possible, and warn users before forced reboots so they save work. Always have a rollback plan. Never disable security updates to make an annoyance go away — reschedule them instead.",
+  },
+  {
+    id: "kb-suspicious-login",
+    title: "Suspicious / Impossible-Travel Sign-in",
+    category: "Security",
+    body: "An 'impossible travel' or unfamiliar sign-in alert (two logins from distant locations too close in time) suggests stolen credentials. Verify with the user out-of-band whether it was them. If not: reset the password, revoke all active sessions/tokens, re-enforce MFA, and check for attacker-created inbox rules or forwarding. Then report to security.",
+  },
+  {
+    id: "kb-mfa-fatigue",
+    title: "MFA Fatigue / Push Bombing",
+    category: "Security",
+    body: "Repeated unexpected MFA approval prompts mean an attacker already has the password and is spamming the user hoping they tap 'Approve' out of annoyance. Tell the user to DENY every prompt and report it. Immediately reset the password, revoke sessions, and switch the account to number-matching MFA. Approving even once can hand over the account.",
+  },
+  {
+    id: "kb-bitlocker",
+    title: "Disk Encryption Recovery Key",
+    category: "Security",
+    body: "If a device boots to a BitLocker/FileVault recovery screen, the encryption key is stored in the directory or MDM tied to that specific device — not with the user. Verify identity, then look up the recovery key by the device ID. Never store or email recovery keys in plaintext. After recovery, find out what triggered it (firmware change, failed update) so it doesn't repeat.",
+  },
+  {
+    id: "kb-bec",
+    title: "Business Email Compromise / CEO Fraud",
+    category: "Security",
+    body: "BEC scams impersonate an executive or vendor to rush someone into wiring money, buying gift cards, or changing bank details. Red flags: urgency, secrecy, a look-alike domain, or a 'reply-to' that differs from the sender. NEVER act on the email alone — verify the request out-of-band using a known phone number, and loop in security/finance before any money moves.",
+  },
+  {
+    id: "kb-major-incident",
+    title: "Major Incident Management",
+    category: "Network",
+    body: "When something is broadly down (email, a core system, a whole site), declare a major incident. Assign an incident commander, open a communication bridge, and post regular status updates with an ETA — even 'still investigating' reassures users. Track a timeline for the post-incident review. Don't let everyone freelance fixes; coordinate.",
+  },
 ];
 
 export const kbById = (id: string) => KB.find((k) => k.id === id);

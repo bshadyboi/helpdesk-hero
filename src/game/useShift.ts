@@ -44,6 +44,8 @@ export interface ShiftState {
   ended: boolean;
   seq: number;
   level: number;
+  /** instanceIds whose result has already been banked to progress (prevents double-counting on refresh) */
+  recorded: string[];
 }
 
 type Action =
@@ -55,7 +57,8 @@ type Action =
   | { type: "REVEAL_REPLY" }
   | { type: "CLOSE_ACTIVE" }
   | { type: "END_SHIFT" }
-  | { type: "SET_LEVEL"; level: number };
+  | { type: "SET_LEVEL"; level: number }
+  | { type: "MARK_RECORDED"; instanceId: string };
 
 let idCounter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${idCounter++}`;
@@ -110,6 +113,7 @@ function reducer(state: ShiftState, action: Action): ShiftState {
         ended: false,
         seq: 0,
         level: action.level,
+        recorded: [],
       };
       const exclude: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -260,6 +264,11 @@ function reducer(state: ShiftState, action: Action): ShiftState {
     case "END_SHIFT":
       return { ...state, ended: true, active: state.active };
 
+    case "MARK_RECORDED":
+      return state.recorded.includes(action.instanceId)
+        ? state
+        : { ...state, recorded: [...state.recorded, action.instanceId] };
+
     default:
       return state;
   }
@@ -273,10 +282,47 @@ const initialState: ShiftState = {
   ended: false,
   seq: 0,
   level: 1,
+  recorded: [],
 };
 
+const SHIFT_STORAGE_KEY = "helpdesk-hero:shift:v1";
+
+/** Load any in-progress shift saved from a previous session. */
+function loadShift(): ShiftState {
+  try {
+    const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return initialState;
+    const saved = JSON.parse(raw) as Partial<ShiftState> | null;
+    // Basic shape validation so a corrupt/old blob can never wedge the app.
+    if (!saved || typeof saved !== "object" || !Array.isArray(saved.queue)) {
+      return initialState;
+    }
+    return { ...initialState, ...saved };
+  } catch {
+    return initialState;
+  }
+}
+
+/** Wipe the saved shift (used on full reset and when clocking into a fresh shift). */
+export function clearSavedShift() {
+  try {
+    localStorage.removeItem(SHIFT_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function useShift(level: number) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, undefined, loadShift);
+
+  // Persist the live shift so a refresh resumes exactly where the player left off.
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // ignore storage quota / serialization errors
+    }
+  }, [state]);
 
   // Keep the difficulty gate in sync with the player's live level.
   useEffect(() => {
