@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Progress, TicketResult } from "./types";
 import { BADGES, rankForXp } from "./ranks";
+import { effectiveLevel as calcEffectiveLevel } from "./certification";
 import { scenarioById } from "./scenarios";
 
 const STORAGE_KEY = "helpdesk-hero:v1";
@@ -38,6 +39,8 @@ function load(): Progress {
 export interface UseGame {
   progress: Progress;
   level: number;
+  xpLevel: number;
+  effectiveLevel: number;
   avgCsat: number;
   newlyUnlocked: string[];
   clearNewlyUnlocked: () => void;
@@ -48,7 +51,7 @@ export interface UseGame {
     result: TicketResult,
     extraBadges?: string[]
   ) => { leveledUp: boolean; newBadges: string[]; newLevel: number };
-  recordDocumentation: (correct: boolean) => boolean;
+  recordDocumentation: (classificationCorrect: boolean, noteCorrect: boolean) => boolean;
   passExam: (level: number) => { alreadyPassed: boolean; xpAwarded: number };
   markTutorialSeen: () => void;
   resetProgress: () => void;
@@ -62,7 +65,8 @@ export function useGame(): UseGame {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
   }, [progress]);
 
-  const level = rankForXp(progress.xp).level;
+  const xpLevel = rankForXp(progress.xp).level;
+  const level = calcEffectiveLevel(xpLevel, progress.passedExamLevels);
   const avgCsat = progress.ticketsResolved
     ? Math.round(progress.totalCsat / progress.ticketsResolved)
     : 0;
@@ -153,20 +157,24 @@ export function useGame(): UseGame {
 
   // Log wrap-up documentation accuracy; returns true when the "By The Book" badge
   // was newly unlocked so the UI can celebrate it.
-  const recordDocumentation = useCallback<UseGame["recordDocumentation"]>((correct) => {
-    let unlockedBadge = false;
-    setProgress((prev) => {
-      const docsCorrect = prev.docsCorrect + (correct ? 1 : 0);
-      const has = new Set(prev.unlockedBadgeIds);
-      if (correct && !has.has("documentarian")) {
-        has.add("documentarian");
-        unlockedBadge = true;
-      }
-      return { ...prev, docsCorrect, unlockedBadgeIds: Array.from(has) };
-    });
-    if (unlockedBadge) setNewlyUnlocked((n) => [...n, "documentarian"]);
-    return unlockedBadge;
-  }, []);
+  const recordDocumentation = useCallback<UseGame["recordDocumentation"]>(
+    (classificationCorrect, noteCorrect) => {
+      let unlockedBadge = false;
+      const perfect = classificationCorrect && noteCorrect;
+      setProgress((prev) => {
+        const docsCorrect = prev.docsCorrect + (perfect ? 1 : 0);
+        const has = new Set(prev.unlockedBadgeIds);
+        if (perfect && !has.has("documentarian")) {
+          has.add("documentarian");
+          unlockedBadge = true;
+        }
+        return { ...prev, docsCorrect, unlockedBadgeIds: Array.from(has) };
+      });
+      if (unlockedBadge) setNewlyUnlocked((n) => [...n, "documentarian"]);
+      return unlockedBadge;
+    },
+    []
+  );
 
   // Bank a passed certification exam: awards XP once and unlocks "Certified".
   const passExam = useCallback<UseGame["passExam"]>((examLevel) => {
@@ -204,6 +212,8 @@ export function useGame(): UseGame {
   return {
     progress,
     level,
+    xpLevel,
+    effectiveLevel: level,
     avgCsat,
     newlyUnlocked,
     clearNewlyUnlocked,

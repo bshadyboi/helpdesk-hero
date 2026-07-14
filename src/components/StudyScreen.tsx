@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { nextRequiredExam } from "../game/certification";
 import { KB } from "../game/knowledge";
 import { EXAMS, type Exam } from "../game/exams";
+import { rankForXp } from "../game/ranks";
 import type { Category, Progress } from "../game/types";
 import { categoryIcon } from "./ui";
 
@@ -15,6 +17,8 @@ type Tab = "kb" | "exams";
 export default function StudyScreen({ progress, onClose, onPassExam }: Props) {
   const [tab, setTab] = useState<Tab>("kb");
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
+  const xpLevel = rankForXp(progress.xp).level;
+  const blockedExam = nextRequiredExam(xpLevel, progress.passedExamLevels);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
@@ -27,6 +31,11 @@ export default function StudyScreen({ progress, onClose, onPassExam }: Props) {
             <h2 className="text-2xl font-extrabold">Study &amp; Certify</h2>
             <div className="text-sm text-slate-300">
               Learn the playbook, then prove it. {progress.passedExamLevels.length}/{EXAMS.length} certifications earned.
+              {blockedExam ? (
+                <span className="mt-1 block text-amber-200">
+                  Your XP outranks your certs — pass Exam {blockedExam} to unlock harder shift tickets.
+                </span>
+              ) : null}
             </div>
           </div>
           <button onClick={onClose} className="btn-ghost">
@@ -107,6 +116,8 @@ function ExamList({
     <div className="max-h-[65vh] space-y-3 overflow-y-auto p-5">
       {EXAMS.map((exam) => {
         const passed = progress.passedExamLevels.includes(exam.id);
+        const unlocksLevel = exam.id + 1;
+        const needed = nextRequiredExam(rankForXp(progress.xp).level, progress.passedExamLevels) === exam.id;
         return (
           <button
             key={exam.id}
@@ -114,7 +125,9 @@ function ExamList({
             className={`flex w-full items-center gap-4 rounded-xl border p-4 text-left transition ${
               passed
                 ? "border-emerald-400/30 bg-emerald-500/10 hover:bg-emerald-500/15"
-                : "border-white/10 bg-ink-900/60 hover:bg-white/5"
+                : needed
+                  ? "border-amber-400/35 bg-amber-500/10 hover:bg-amber-500/15"
+                  : "border-white/10 bg-ink-900/60 hover:bg-white/5"
             }`}
           >
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ink-950/60 text-2xl">
@@ -128,10 +141,15 @@ function ExamList({
                     ✓ Certified
                   </span>
                 )}
+                {needed && !passed && (
+                  <span className="chip border border-amber-400/30 bg-amber-500/15 text-amber-200">
+                    Required now
+                  </span>
+                )}
               </div>
               <div className="text-sm text-slate-400">{exam.blurb}</div>
               <div className="mt-0.5 text-xs text-slate-500">
-                {exam.questions.length} questions · pass {exam.passPct}%
+                {exam.questions.length} questions · pass {exam.passPct}% · unlocks Level {unlocksLevel} tickets
               </div>
             </div>
             <span className="text-brand-300">{passed ? "Retake ▸" : "Start ▸"}</span>

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import type { ShiftType } from "../game/adaptive";
 import type { UseGame } from "../game/useGame";
 import { SHIFT_GOAL, SHIFT_START_MIN, useShift } from "../game/useShift";
 import { blip, cancelSpeech, speak } from "../lib/speech";
+import BadgeToast from "./BadgeToast";
+import CertGateBanner from "./CertGateBanner";
 import ChatPanel from "./ChatPanel";
 import CustomerCard from "./CustomerCard";
 import KnowledgePanel from "./KnowledgePanel";
@@ -16,6 +19,7 @@ interface Props {
   game: UseGame;
   practiceScenarioId?: string | null;
   freshShift?: boolean;
+  shiftType?: ShiftType;
   onExit: () => void;
   onPracticeEnd: () => void;
   onOpenTrophy: () => void;
@@ -34,6 +38,7 @@ export default function Workspace({
   game,
   practiceScenarioId,
   freshShift,
+  shiftType = "day",
   onExit,
   onPracticeEnd,
   onOpenTrophy,
@@ -44,11 +49,14 @@ export default function Workspace({
   const {
     progress,
     level,
+    xpLevel,
     recordResult,
     recordDocumentation,
     markTutorialSeen,
     toggleSound,
     toggleVoice,
+    newlyUnlocked,
+    clearNewlyUnlocked,
   } = game;
   const { state, dispatch } = useShift(level, progress.categoryStats, progress.ticketsResolved);
 
@@ -96,6 +104,7 @@ export default function Workspace({
           type: "START",
           level,
           categoryStats: progress.categoryStats,
+          shiftType,
         });
         setBriefingReady(true);
       }
@@ -226,6 +235,7 @@ export default function Workspace({
       type: "START",
       level,
       categoryStats: progress.categoryStats,
+      shiftType: state.shiftType,
     });
     setShowBriefing(true);
   };
@@ -254,10 +264,18 @@ export default function Workspace({
 
   return (
     <div className="flex min-h-full flex-col">
+      {!isPractice && (
+        <CertGateBanner
+          xpLevel={xpLevel}
+          passedExamLevels={progress.passedExamLevels}
+          onOpenStudy={onOpenStudy}
+        />
+      )}
       <TopBar
         progress={progress}
         clock={state.clock}
         resolvedCount={state.resolved.length}
+        shiftType={state.shiftType}
         onToggleSound={toggleSound}
         onToggleVoice={() => {
           if (progress.voiceOn) cancelSpeech();
@@ -326,10 +344,16 @@ export default function Workspace({
         />
       )}
 
+      {newlyUnlocked.length > 0 && !showModal && (
+        <BadgeToast badgeIds={newlyUnlocked} onDone={clearNewlyUnlocked} />
+      )}
+
       {showBriefing && (
         <ShiftBriefing
           progress={progress}
           level={level}
+          shiftType={state.shiftType}
+          xpLevel={xpLevel}
           onBegin={() => setShowBriefing(false)}
         />
       )}

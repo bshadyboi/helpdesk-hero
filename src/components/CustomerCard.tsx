@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ActiveState } from "../game/useShift";
+import { activeElapsedSeconds } from "../game/useShift";
 import { DifficultyDots, Meter, moodStyles, TierBadge } from "./ui";
 
 interface Props {
@@ -7,11 +8,11 @@ interface Props {
 }
 
 export default function CustomerCard({ active }: Props) {
-  const [now, setNow] = useState(Date.now());
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!active || active.phase === "resolved") return;
-    const t = setInterval(() => setNow(Date.now()), 500);
+    const t = setInterval(() => setTick((n) => n + 1), 500);
     return () => clearInterval(t);
   }, [active, active?.phase]);
 
@@ -28,7 +29,7 @@ export default function CustomerCard({ active }: Props) {
 
   const s = active.item.scenario;
   const mood = moodStyles[active.mood];
-  const elapsed = Math.floor((now - active.startReal) / 1000);
+  const elapsed = activeElapsedSeconds(active);
   const remaining = Math.max(0, s.slaSeconds - elapsed);
   const overdue = remaining <= 0 && active.phase !== "resolved";
   const mm = Math.floor(remaining / 60);

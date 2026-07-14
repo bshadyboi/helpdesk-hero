@@ -1,3 +1,4 @@
+import type { ShiftType } from "../game/adaptive";
 import { nextRank, rankForXp, rankProgress } from "../game/ranks";
 import type { Progress } from "../game/types";
 import { formatClock, SHIFT_GOAL } from "../game/useShift";
@@ -7,6 +8,7 @@ interface Props {
   progress: Progress;
   clock: number;
   resolvedCount: number;
+  shiftType?: ShiftType;
   practiceMode?: boolean;
   onToggleSound: () => void;
   onToggleVoice: () => void;
@@ -21,6 +23,7 @@ export default function TopBar({
   progress,
   clock,
   resolvedCount,
+  shiftType = "day",
   practiceMode,
   onToggleSound,
   onToggleVoice,
@@ -46,7 +49,9 @@ export default function TopBar({
               Helpdesk <span className="text-gradient">Hero</span>
             </div>
             <div className="text-[11px] text-slate-400">
-              {practiceMode ? "Practice run" : `${progress.agentName || "Agent"}'s Shift`}
+              {practiceMode
+                ? "Practice run"
+                : `${progress.agentName || "Agent"}'s ${shiftType === "night" ? "🌙 Night" : "☀️ Day"} shift`}
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { RANKS, rankForXp } from "../game/ranks";
+import type { ShiftType } from "../game/adaptive";
 import { formatClock, getSavedShiftSummary, hasSavedShift } from "../game/useShift";
 import type { Progress } from "../game/types";
 import { speechSupported } from "../lib/speech";
@@ -7,7 +8,7 @@ import { speechSupported } from "../lib/speech";
 interface Props {
   progress: Progress;
   onResume: () => void;
-  onNewShift: (name: string) => void;
+  onNewShift: (name: string, shiftType: ShiftType) => void;
   onOpenPractice: () => void;
   onReset: () => void;
   onOpenTrophy: () => void;
@@ -26,6 +27,7 @@ export default function StartScreen({
   onOpenStudy,
 }: Props) {
   const [name, setName] = useState(progress.agentName || "");
+  const [shiftType, setShiftType] = useState<ShiftType>("day");
   const rank = rankForXp(progress.xp);
   const returning = progress.ticketsResolved > 0;
   const saved = hasSavedShift() ? getSavedShiftSummary() : null;
@@ -49,26 +51,62 @@ export default function StartScreen({
 
         <div className="panel p-6 sm:p-8">
           <label className="mb-2 block text-sm font-semibold text-slate-300">Your agent name</label>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onNewShift(name)}
-              placeholder="e.g. Alex Rivera"
-              maxLength={24}
-              className="flex-1 rounded-xl border border-white/10 bg-ink-900/70 px-4 py-3 text-slate-100 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-400/20"
-            />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onNewShift(name, shiftType)}
+            placeholder="e.g. Alex Rivera"
+            maxLength={24}
+            className="w-full rounded-xl border border-white/10 bg-ink-900/70 px-4 py-3 text-slate-100 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-400/20"
+          />
+
+          {!saved && (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Shift type
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShiftType("day")}
+                  className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    shiftType === "day"
+                      ? "border-brand-400/50 bg-brand-500/15 text-brand-100"
+                      : "border-white/10 bg-ink-900/60 text-slate-400 hover:bg-white/5"
+                  }`}
+                >
+                  ☀️ Day shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShiftType("night")}
+                  className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    shiftType === "night"
+                      ? "border-indigo-400/50 bg-indigo-500/15 text-indigo-100"
+                      : "border-white/10 bg-ink-900/60 text-slate-400 hover:bg-white/5"
+                  }`}
+                >
+                  🌙 Night shift
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Night shifts bias toward Security, VIP, and harder escalations — closer to on-call reality.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {saved ? (
               <>
                 <button className="btn-primary text-base" onClick={onResume}>
                   Resume shift ▸
                 </button>
-                <button className="btn-ghost text-base" onClick={() => onNewShift(name)}>
+                <button className="btn-ghost text-base" onClick={() => onNewShift(name, shiftType)}>
                   New shift
                 </button>
               </>
             ) : (
-              <button className="btn-primary text-base" onClick={() => onNewShift(name)}>
+              <button className="btn-primary text-base" onClick={() => onNewShift(name, shiftType)}>
                 {returning ? "Clock in ▸" : "Start your shift ▸"}
               </button>
             )}

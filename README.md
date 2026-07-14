@@ -36,6 +36,8 @@ npm run dev
 
 Then open the printed local URL. Enter an agent name and clock in.
 
+**Play live:** [https://bshadyboi.github.io/helpdesk-hero/](https://bshadyboi.github.io/helpdesk-hero/) — auto-deploys from `main` via GitHub Actions.
+
 > 🔊 Turn your volume up — the clients talk!
 
 ## 🏗️ Build for production / go live
@@ -49,7 +51,8 @@ The `dist/` folder is a static site. Deploy it to any static host:
 
 - **Netlify / Vercel / Cloudflare Pages** — point at this repo, build command `npm run build`,
   publish directory `dist`.
-- **GitHub Pages** — publish the `dist/` folder.
+- **GitHub Pages** — push to `main` and the workflow in `.github/workflows/deploy.yml` publishes to
+  `https://bshadyboi.github.io/helpdesk-hero/` (or fork and enable Pages on your repo).
 - Any static file server.
 
 ## 🎮 How to play

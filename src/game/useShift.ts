@@ -1,9 +1,10 @@
 import { useEffect, useReducer } from "react";
 import type { Category, CategoryStat, ChatMessage, Mood, Scenario, TicketResult } from "./types";
-import { pickAdaptiveScenario } from "./adaptive";
+import { pickAdaptiveScenario, type ShiftType } from "./adaptive";
 import { scenarioById } from "./scenarios";
 
 export const SHIFT_START_MIN = 9 * 60; // 9:00 AM
+export const SHIFT_NIGHT_START = 17 * 60; // 5:00 PM
 export const SHIFT_GOAL = 6;
 const MIN_PER_TICKET = Math.round((8 * 60) / SHIFT_GOAL);
 const MAX_QUEUE = 4;
@@ -32,7 +33,12 @@ export interface ActiveState {
   mood: Mood;
   messages: ChatMessage[];
   wrongPicks: number;
+  /** @deprecated legacy — use elapsedMs + timerAnchor */
   startReal: number;
+  /** accumulated ms on this ticket (frozen across refresh) */
+  elapsedMs: number;
+  /** wall-clock anchor for the current running segment */
+  timerAnchor: number;
   phase: Phase;
   coaching: string | null;
   pending: Pending | null;
@@ -50,10 +56,16 @@ export interface ShiftState {
   recorded: string[];
   mode: ShiftMode;
   categoryStats: Partial<Record<Category, CategoryStat>>;
+  shiftType: ShiftType;
 }
 
 type Action =
-  | { type: "START"; level: number; categoryStats: Partial<Record<Category, CategoryStat>> }
+  | {
+      type: "START";
+      level: number;
+      categoryStats: Partial<Record<Category, CategoryStat>>;
+      shiftType?: ShiftType;
+    }
   | { type: "PRACTICE_START"; level: number; scenarioId: string; categoryStats: Partial<Record<Category, CategoryStat>> }
   | { type: "ENQUEUE" }
   | { type: "OPEN"; instanceId: string }
@@ -70,7 +82,12 @@ let idCounter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${idCounter++}`;
 
 function makeQueueItem(state: ShiftState, exclude: string[]): QueueItem {
-  const scenario = pickAdaptiveScenario(state.level, exclude, state.categoryStats);
+  const scenario = pickAdaptiveScenario(
+    state.level,
+    exclude,
+    state.categoryStats,
+    state.shiftType
+  );
   return { instanceId: uid("t"), scenario, arrivedClock: state.clock };
 }
 
@@ -82,8 +99,19 @@ function msg(role: ChatMessage["role"], text: string): ChatMessage {
   return { id: uid("m"), role, text, ts: Date.now() };
 }
 
+function activeElapsedMs(a: ActiveState, now = Date.now()): number {
+  if (a.elapsedMs == null) {
+    if (a.startReal) return Math.max(0, now - a.startReal);
+    return 0;
+  }
+  const anchor = a.timerAnchor ?? now;
+  const base = a.elapsedMs;
+  if (a.phase === "resolved") return base;
+  return base + Math.max(0, now - anchor);
+}
+
 function computeResult(a: ActiveState): TicketResult {
-  const timeSeconds = Math.round((Date.now() - a.startReal) / 1000);
+  const timeSeconds = Math.round(activeElapsedMs(a) / 1000);
   const s = a.item.scenario;
   const slaMet = timeSeconds <= s.slaSeconds;
   const csat = Math.max(0, Math.min(100, Math.round(a.csat)));
@@ -107,8 +135,9 @@ function computeResult(a: ActiveState): TicketResult {
 function reducer(state: ShiftState, action: Action): ShiftState {
   switch (action.type) {
     case "START": {
+      const shiftType = action.shiftType ?? "day";
       let s: ShiftState = {
-        clock: SHIFT_START_MIN,
+        clock: shiftType === "night" ? SHIFT_NIGHT_START : SHIFT_START_MIN,
         queue: [],
         resolved: [],
         active: null,
@@ -118,6 +147,7 @@ function reducer(state: ShiftState, action: Action): ShiftState {
         recorded: [],
         mode: "shift",
         categoryStats: action.categoryStats,
+        shiftType,
       };
       const exclude: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -143,6 +173,7 @@ function reducer(state: ShiftState, action: Action): ShiftState {
           recorded: [],
           mode: "practice",
           categoryStats: action.categoryStats,
+          shiftType: "day",
         },
         scenario
       );
@@ -157,6 +188,7 @@ function reducer(state: ShiftState, action: Action): ShiftState {
         recorded: [],
         mode: "practice",
         categoryStats: action.categoryStats,
+        shiftType: "day",
       };
     }
 
@@ -181,6 +213,7 @@ function reducer(state: ShiftState, action: Action): ShiftState {
       const item = state.queue.find((q) => q.instanceId === action.instanceId);
       if (!item) return state;
       const step = item.scenario.steps[0];
+      const now = Date.now();
       const active: ActiveState = {
         item,
         stepIndex: 0,
@@ -188,7 +221,9 @@ function reducer(state: ShiftState, action: Action): ShiftState {
         mood: step.clientMood,
         messages: [],
         wrongPicks: 0,
-        startReal: Date.now(),
+        startReal: now,
+        elapsedMs: 0,
+        timerAnchor: now,
         phase: "opening-typing",
         coaching: null,
         pending: null,
@@ -326,7 +361,27 @@ const initialState: ShiftState = {
   recorded: [],
   mode: "shift",
   categoryStats: {},
+  shiftType: "day",
 };
+
+function normalizeActiveTimer(active: ActiveState): ActiveState {
+  if (active.phase === "resolved") return active;
+  const now = Date.now();
+  const elapsedMs = activeElapsedMs(active, now);
+  return { ...active, elapsedMs, timerAnchor: now, startReal: now - elapsedMs };
+}
+
+function snapshotStateForSave(state: ShiftState): ShiftState {
+  if (!state.active || state.active.phase === "resolved") return state;
+  return { ...state, active: normalizeActiveTimer(state.active) };
+}
+
+function hydrateLoadedShift(saved: ShiftState): ShiftState {
+  if (saved.active && saved.active.phase !== "resolved") {
+    return { ...saved, active: normalizeActiveTimer(saved.active) };
+  }
+  return saved;
+}
 
 const SHIFT_STORAGE_KEY = "helpdesk-hero:shift:v1";
 
@@ -336,11 +391,17 @@ function loadShift(): ShiftState {
     const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
     if (!raw) return initialState;
     const saved = JSON.parse(raw) as Partial<ShiftState> | null;
-    // Basic shape validation so a corrupt/old blob can never wedge the app.
     if (!saved || typeof saved !== "object" || !Array.isArray(saved.queue)) {
       return initialState;
     }
-    return { ...initialState, ...saved, mode: saved.mode ?? "shift", categoryStats: saved.categoryStats ?? {} };
+    const merged = {
+      ...initialState,
+      ...saved,
+      mode: saved.mode ?? "shift",
+      categoryStats: saved.categoryStats ?? {},
+      shiftType: saved.shiftType ?? "day",
+    } as ShiftState;
+    return hydrateLoadedShift(merged);
   } catch {
     return initialState;
   }
@@ -406,10 +467,10 @@ export function useShift(
 ) {
   const [state, dispatch] = useReducer(reducer, undefined, loadShift);
 
-  // Persist the live shift so a refresh resumes exactly where the player left off.
+  // Persist the live shift; freeze SLA timer so refresh doesn't eat the clock.
   useEffect(() => {
     try {
-      localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(snapshotStateForSave(state)));
     } catch {
       // ignore storage quota / serialization errors
     }
@@ -448,6 +509,10 @@ export function useShift(
   }, [state.ended, state.resolved.length]);
 
   return { state, dispatch };
+}
+
+export function activeElapsedSeconds(active: ActiveState): number {
+  return Math.floor(activeElapsedMs(active) / 1000);
 }
 
 export function formatClock(minutes: number): string {

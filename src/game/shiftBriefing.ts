@@ -1,3 +1,5 @@
+import type { ShiftType } from "../game/adaptive";
+import { certGateMessage } from "./certification";
 import { RANKS, rankForXp } from "./ranks";
 import type { Category, Progress } from "./types";
 import { weakCategories } from "./adaptive";
@@ -17,16 +19,37 @@ export interface BriefingLine {
   text: string;
 }
 
-export function buildShiftBriefing(progress: Progress, level: number): BriefingLine[] {
+export function buildShiftBriefing(
+  progress: Progress,
+  effectiveLevel: number,
+  opts?: { shiftType?: ShiftType; xpLevel?: number }
+): BriefingLine[] {
+  const shiftType = opts?.shiftType ?? "day";
+  const xpLevel = opts?.xpLevel ?? effectiveLevel;
   const rank = rankForXp(progress.xp);
-  const next = RANKS.find((r) => r.level === level + 1);
+  const next = RANKS.find((r) => r.level === effectiveLevel + 1);
   const weak = weakCategories(progress.categoryStats, 2);
   const lines: BriefingLine[] = [];
 
+  if (shiftType === "night") {
+    lines.push({
+      icon: "🌙",
+      text: "Night shift — fewer walk-ups, but Security and VIP escalations hit harder. Stay sharp on verification and incident hygiene.",
+    });
+  }
+
   lines.push({
     icon: rank.icon,
-    text: `You're clocked in as ${rank.title} (Level ${level}). ${rank.blurb}`,
+    text: `You're clocked in as ${rank.title} (Level ${effectiveLevel} tickets). ${rank.blurb}`,
   });
+
+  const certMsg = certGateMessage(xpLevel, progress.passedExamLevels);
+  if (certMsg) {
+    lines.push({
+      icon: "📜",
+      text: certMsg,
+    });
+  }
 
   if (next) {
     lines.push({
@@ -48,7 +71,7 @@ export function buildShiftBriefing(progress: Progress, level: number): BriefingL
     });
   }
 
-  if (level >= 3) {
+  if (effectiveLevel >= 3) {
     lines.push({
       icon: "👑",
       text: "VIP and Executive tickets are on the floor — lead with calm, own the problem, and never skip verification.",

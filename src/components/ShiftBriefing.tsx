@@ -1,14 +1,17 @@
 import { buildShiftBriefing } from "../game/shiftBriefing";
+import type { ShiftType } from "../game/adaptive";
 import type { Progress } from "../game/types";
 
 interface Props {
   progress: Progress;
   level: number;
+  shiftType?: ShiftType;
+  xpLevel?: number;
   onBegin: () => void;
 }
 
-export default function ShiftBriefing({ progress, level, onBegin }: Props) {
-  const lines = buildShiftBriefing(progress, level);
+export default function ShiftBriefing({ progress, level, shiftType, xpLevel, onBegin }: Props) {
+  const lines = buildShiftBriefing(progress, level, { shiftType, xpLevel });
 
   return (
     <div className="fixed inset-0 z-[55] grid place-items-center bg-black/70 p-4 backdrop-blur-sm">

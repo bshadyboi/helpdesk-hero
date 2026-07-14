@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BADGES, RANKS } from "../game/ranks";
 import { kbById } from "../game/knowledge";
 import { lessonFor } from "../game/lessons";
+import { resolutionNotesFor } from "../game/resolutionNotes";
 import type { Category, Scenario, Tier, TicketResult } from "../game/types";
 import Confetti from "./Confetti";
 import { categoryIcon, tierStyles } from "./ui";
@@ -12,8 +13,8 @@ interface Props {
   leveledUp: boolean;
   newLevel: number;
   newBadges: string[];
-  /** Log the wrap-up documentation; returns true if the "By The Book" badge just unlocked. */
-  onDocumented: (correct: boolean) => boolean;
+  /** Log wrap-up documentation; returns true if the "By The Book" badge just unlocked. */
+  onDocumented: (classificationCorrect: boolean, noteCorrect: boolean) => boolean;
   onNext: () => void;
   shiftDone: boolean;
   practiceMode?: boolean;
@@ -37,11 +38,16 @@ export default function ResultModal({
   const [phase, setPhase] = useState<"doc" | "review">("doc");
   const [cat, setCat] = useState<Category | null>(null);
   const [tier, setTier] = useState<Tier | null>(null);
+  const [noteId, setNoteId] = useState<string | null>(null);
   const [docBadge, setDocBadge] = useState(false);
+
+  const noteOptions = useMemo(() => resolutionNotesFor(scenario), [scenario]);
+  const selectedNote = noteOptions.find((n) => n.id === noteId);
 
   const catCorrect = cat === scenario.category;
   const tierCorrect = tier === scenario.tier;
-  const docPerfect = catCorrect && tierCorrect;
+  const noteCorrect = selectedNote?.correct ?? false;
+  const docPerfect = catCorrect && tierCorrect && noteCorrect;
 
   const great = result.csat >= 85 && result.wrongPicks === 0;
   const good = result.csat >= 65;
@@ -61,8 +67,8 @@ export default function ResultModal({
   const lesson = lessonFor(scenario.id);
 
   const submitDoc = () => {
-    if (!cat || !tier) return;
-    setDocBadge(onDocumented(docPerfect));
+    if (!cat || !tier || !noteId) return;
+    setDocBadge(onDocumented(catCorrect && tierCorrect, noteCorrect));
     setPhase("review");
   };
 
@@ -71,7 +77,7 @@ export default function ResultModal({
       if (e.key === "Enter") {
         e.preventDefault();
         if (phase === "doc") {
-          if (cat && tier) submitDoc();
+          if (cat && tier && noteId) submitDoc();
         } else {
           onNext();
         }
@@ -80,7 +86,7 @@ export default function ResultModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, cat, tier]);
+  }, [phase, cat, tier, noteId]);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
@@ -156,9 +162,33 @@ export default function ResultModal({
               </div>
             </div>
 
+            <div className="mb-5">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Resolution note
+              </div>
+              <p className="mb-2 text-xs text-slate-500">
+                One line for the ticket log — how did you actually fix it?
+              </p>
+              <div className="space-y-2">
+                {noteOptions.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => setNoteId(n.id)}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-left text-xs transition ${
+                      noteId === n.id
+                        ? "border-brand-400/50 bg-brand-500/15 text-brand-100"
+                        : "border-white/5 bg-ink-900/60 text-slate-400 hover:bg-white/5"
+                    }`}
+                  >
+                    {n.text}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               onClick={submitDoc}
-              disabled={!cat || !tier}
+              disabled={!cat || !tier || !noteId}
               className="btn-primary w-full text-base disabled:cursor-not-allowed disabled:opacity-40"
             >
               Log ticket ▸
@@ -182,6 +212,18 @@ export default function ResultModal({
                 picked={tier!}
                 correct={tierCorrect}
                 answer={scenario.tier}
+              />
+              <DocLine
+                label="Resolution"
+                picked={
+                  selectedNote
+                    ? selectedNote.text.length > 52
+                      ? `${selectedNote.text.slice(0, 52)}…`
+                      : selectedNote.text
+                    : "—"
+                }
+                correct={noteCorrect}
+                answer="Accurate summary of fix"
               />
               {docPerfect ? (
                 <div className="mt-1 text-xs text-emerald-300">Filed perfectly. That's how you keep a queue sane.</div>
